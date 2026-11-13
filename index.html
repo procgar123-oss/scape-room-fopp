@@ -1,0 +1,2294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HUMAN_BEHAVIOR.EXE | Escape Room FOPP 4º ESO</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tone.js para efectos de sonido sintetizados sin URLs externas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <!-- Fuentes: Inter, JetBrains Mono (terminal) y Patrick Hand (estética cuaderno Notebook) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+            notebook: ['Patrick Hand', 'cursive'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Fondo con patrón sutil de cuadrícula de puntos estilo cuaderno técnico */
+    .dot-grid-bg {
+      background-color: #0b1120;
+      background-image: radial-gradient(#1e293b 1.25px, transparent 1.25px);
+      background-size: 22px 22px;
+    }
+
+    /* Tarjeta estilo papel de cuaderno reciclado para pistas y expedientes */
+    .notebook-card {
+      background-color: #fcfaf2;
+      background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+      background-size: 16px 16px;
+      color: #1e293b;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 4px 4px 0px #334155;
+    }
+
+    /* Animación de sacudida para códigos incorrectos */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+    .animate-shake {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    /* Animación de penalización de tiempo flotante */
+    @keyframes floatDownFade {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(28px) scale(1.15); }
+    }
+    .penalty-float {
+      animation: floatDownFade 1.4s ease-out forwards;
+    }
+
+    /* Scrollbar personalizada */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="dot-grid-bg text-slate-100 min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+  <!-- ===================================================================== -->
+  <!-- BARRA SUPERIOR DE TELEMETRÍA (HUD DEL CENTRO DE CONTROL)              -->
+  <!-- ===================================================================== -->
+  <header class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-lg">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Identidad del Sistema -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center shadow-md shadow-rose-500/20 shrink-0">
+          <svg id="header-lock-icon" class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-mono font-bold text-sm sm:text-base tracking-tight text-white">HUMAN_BEHAVIOR.EXE</span>
+            <span class="hidden md:inline-block px-2 py-0.5 text-[11px] font-semibold rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              4º ESO · FOPP
+            </span>
+          </div>
+          <p id="hud-team-display" class="text-xs text-slate-400 truncate max-w-[180px] sm:max-w-xs">
+            Estado: Esperando registro de equipo...
+          </p>
+        </div>
+      </div>
+
+      <!-- Progreso de los 5 Módulos (visible durante el juego) -->
+      <nav id="hud-progress" class="hidden lg:flex items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+        <!-- Se rellena dinámicamente -->
+      </nav>
+
+      <!-- Cronómetro Central, Pistas y Controles -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Contador de Pistas Totales Usadas -->
+        <div id="hud-hints-badge" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 text-xs font-medium text-amber-300" title="Pistas usadas en toda la partida">
+          <span>💡</span>
+          <span>Pistas: <strong id="hud-hints-count" class="font-mono">0</strong>/25</span>
+        </div>
+
+        <!-- Reloj Cuenta Atrás 40:00 -->
+        <div class="relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-950 border-2 border-slate-700 shadow-inner" id="timer-container">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" id="timer-dot"></span>
+          <span id="timer-display" class="font-mono font-bold text-lg sm:text-2xl tracking-wider text-emerald-400">40:00</span>
+          <div id="penalty-spawn" class="absolute -bottom-6 right-2 pointer-events-none"></div>
+        </div>
+
+        <!-- Botón Clasificación en Tiempo Real (Proyección Pizarra) -->
+        <button onclick="openLeaderboardModal()" class="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-xs font-bold text-amber-300 transition flex items-center gap-1.5" title="Ver clasificación en vivo de la clase">
+          <span>🏆</span>
+          <span class="hidden md:inline">Clasificación</span>
+          <span id="hud-live-teams-count" class="px-1.5 py-0.5 rounded-full bg-amber-500/30 text-amber-200 font-mono text-[10px]">0</span>
+        </button>
+
+        <!-- Botón Sonido -->
+        <button id="btn-sound" onclick="toggleSound()" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition" title="Activar/Silenciar audio">
+          <span id="sound-icon">🔊</span>
+        </button>
+
+        <!-- Botón Panel Docente -->
+        <button onclick="openTeacherModal()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-300 transition flex items-center gap-1.5" title="Acceso para el profesor/a">
+          <span>🎓</span>
+          <span class="hidden sm:inline">Docente</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- CONTENEDOR PRINCIPAL DE PANTALLAS                                     -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6 sm:py-8">
+
+    <!-- ------------------------------------------------------------------- -->
+    <!-- PANTALLA 1: BRIEFING INICIAL Y REGISTRO DE ROLES DEL EQUIPO         -->
+    <!-- ------------------------------------------------------------------- -->
+    <section id="view-intro" class="max-w-5xl mx-auto space-y-6">
+      
+      <!-- Tarjeta Principal de Narrativa -->
+      <div class="rounded-3xl bg-slate-900/90 border border-slate-800 p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        <div class="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div class="flex flex-col lg:flex-row gap-6 items-start">
+          <div class="flex-1 space-y-4">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-mono font-semibold">
+              <span>⚠️ ALERTA DE BLOQUEO DEL SISTEMA</span>
+              <span>·</span>
+              <span>TIEMPO LÍMITE: 40:00 MIN</span>
+            </div>
+            
+            <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              Atrapados en el Centro de Control: <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-rose-400 to-indigo-400">HUMAN_BEHAVIOR.EXE</span>
+            </h1>
+            
+            <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+              Vuestro equipo de investigación en <strong>Formación y Orientación Personal y Profesional (4º ESO)</strong> ha quedado encerrado dentro del simulador de conducta humana. Para abrir las compuertas antes de que el reloj llegue a cero, deberéis dominar las <strong>cuatro claves fundamentales</strong> de los <strong>Temas 1 y 2</strong>:
+            </p>
+
+            <!-- Los 4 Pilares del Vídeo Resumen -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-start gap-3">
+                <span class="text-2xl">🧠</span>
+                <div>
+                  <h3 class="font-bold text-sm text-sky-300">1. Química Cerebral</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Neurotransmisores (dopamina), circuito de recompensa y secuestro por adicciones.</p>
+                </div>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-start gap-3">
+                <span class="text-2xl">⚙️</span>
+                <div>
+                  <h3 class="font-bold text-sm text-amber-300">2. Procesador Interno</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Atención, memoria, pensamiento crítico, emociones y desarrollo adolescente.</p>
+                </div>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-start gap-3">
+                <span class="text-2xl">🌍</span>
+                <div>
+                  <h3 class="font-bold text-sm text-emerald-300">3. La Trampa Cultural</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Antropología, diversidad cultural, ritos de paso y superación del etnocentrismo.</p>
+                </div>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-start gap-3">
+                <span class="text-2xl">👥</span>
+                <div>
+                  <h3 class="font-bold text-sm text-purple-300">4. La Red Social</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Agentes de socialización, asertividad frente a la presión grupal e igualdad de género.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reglas de Pistas y Evaluación -->
+          <div class="w-full lg:w-80 notebook-card rounded-2xl p-5 border-2 border-slate-700 shrink-0 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-300 pb-2">
+              <span class="font-notebook text-xl font-bold text-slate-800">📋 Protocolo de Misión</span>
+              <span class="px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-mono text-xs font-bold">5 RETOS</span>
+            </div>
+            <ul class="text-xs space-y-2 text-slate-700 leading-relaxed">
+              <li class="flex items-start gap-2">
+                <span class="font-bold text-indigo-700">⏱️</span>
+                <span><strong>Cuenta atrás de 40 min:</strong> El tiempo sobrante suma puntos en vuestra calificación final.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="font-bold text-amber-700">💡</span>
+                <span><strong>Hasta 5 pistas por reto:</strong> Si os bloqueáis podéis pedir ayuda, pero cada pista resta tiempo (<code class="bg-slate-200 px-1 rounded">-0:30</code> a <code class="bg-slate-200 px-1 rounded">-2:00</code>).</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="font-bold text-emerald-700">🤝</span>
+                <span><strong>Organización por roles:</strong> Repartid las 4 funciones antes de empezar para coordinaros mejor.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="font-bold text-rose-700">🏆</span>
+                <span><strong>Ranking en directo:</strong> Vuestro avance se sincroniza en el marcador del aula.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulario de Constitución del Equipo y Roles -->
+      <div class="rounded-3xl bg-slate-900/90 border border-slate-800 p-6 sm:p-8 shadow-xl space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+          <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <span>🛡️</span> Constitución del Equipo y Reparto de Roles
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-400">Asignad cada responsabilidad a un miembro del grupo (si sois 3, una persona asume dos roles).</p>
+          </div>
+          <span class="text-xs font-mono text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-xl">
+            Criterio de Evaluación: Trabajo Cooperativo
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Nombre del Equipo *</label>
+            <input type="text" id="input-team-name" placeholder="Ej. Sinapsis Crítica / Los Relativistas" class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Grupo / Clase *</label>
+            <select id="input-team-course" class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-indigo-500 transition">
+              <option value="4º ESO A - FOPP">4º ESO A - FOPP</option>
+              <option value="4º ESO B - FOPP">4º ESO B - FOPP</option>
+              <option value="4º ESO C - FOPP">4º ESO C - FOPP</option>
+              <option value="4º ESO D - FOPP">4º ESO D - FOPP</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 4 Roles del Equipo -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div class="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2">
+            <div class="flex items-center gap-2 text-sky-400 font-bold text-xs uppercase">
+              <span>⏱️</span> Rol 1 · Coordinación
+            </div>
+            <p class="text-[11px] text-slate-400">Vigila el cronómetro, modera los turnos de palabra y evita bloqueos.</p>
+            <input type="text" id="role-coord" placeholder="Nombre alumno/a *" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500" />
+          </div>
+
+          <div class="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2">
+            <div class="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase">
+              <span>📚</span> Rol 2 · Analista Teórico
+            </div>
+            <p class="text-[11px] text-slate-400">Consulta los conceptos clave de los Temas 1 y 2 y verifica los datos.</p>
+            <input type="text" id="role-analyst" placeholder="Nombre alumno/a *" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500" />
+          </div>
+
+          <div class="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2">
+            <div class="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase">
+              <span>🔐</span> Rol 3 · Descifrador/a
+            </div>
+            <p class="text-[11px] text-slate-400">Introduce las claves numéricas y palabras maestras tras el acuerdo grupal.</p>
+            <input type="text" id="role-hacker" placeholder="Nombre alumno/a" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+          </div>
+
+          <div class="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2">
+            <div class="flex items-center gap-2 text-purple-400 font-bold text-xs uppercase">
+              <span>💡</span> Rol 4 · Gestor/a Pistas
+            </div>
+            <p class="text-[11px] text-slate-400">Evalúa el coste-beneficio antes de solicitar una pista penalizada.</p>
+            <input type="text" id="role-hints" placeholder="Nombre alumno/a" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+          </div>
+        </div>
+
+        <div id="intro-error-box" class="hidden p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-medium">
+          ⚠️ Por favor, escribe el nombre de vuestro equipo y al menos dos integrantes antes de iniciar la cuenta atrás.
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+          <p class="text-xs text-slate-400">
+            Al pulsar el botón comenzará la cuenta atrás de <strong>40 minutos</strong>. ¡Buena suerte!
+          </p>
+          <button onclick="startEscapeRoom()" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-600 hover:from-indigo-500 hover:to-rose-500 text-white font-extrabold text-base shadow-lg shadow-indigo-600/30 transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2.5">
+            <span>🚀</span>
+            <span>INICIAR ESCAPE ROOM (40:00)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------------- -->
+    <!-- PANTALLA 2: ZONA DE JUEGO (5 RETOS + SISTEMA DE 5 PISTAS POR RETO)  -->
+    <!-- ------------------------------------------------------------------- -->
+    <section id="view-game" class="hidden space-y-6">
+      
+      <!-- Navegación móvil de módulos -->
+      <div id="mobile-stage-pills" class="flex lg:hidden gap-2 overflow-x-auto pb-2">
+        <!-- Se rellena dinámicamente -->
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- COLUMNA PRINCIPAL: ENIGMA ACTUAL (8 columnas en desktop) -->
+        <div class="lg:col-span-8 space-y-6">
+          <div id="challenge-container" class="rounded-3xl bg-slate-900/95 border border-slate-800 p-5 sm:p-8 shadow-2xl">
+            <!-- Contenido dinámico del reto actual -->
+          </div>
+        </div>
+
+        <!-- COLUMNA LATERAL: LLAVERO DE CLAVES Y SISTEMA DE 5 PISTAS (4 columnas) -->
+        <aside class="lg:col-span-4 space-y-5">
+          
+          <!-- Llavero de Claves Recuperadas -->
+          <div class="notebook-card rounded-2xl p-5 border-2 border-slate-700">
+            <h3 class="font-notebook text-xl font-bold text-slate-800 flex items-center gap-2 border-b border-slate-300 pb-2 mb-3">
+              <span>🔑</span> Claves Descifradas
+            </h3>
+            <div class="grid grid-cols-2 gap-2.5" id="collected-keys-grid">
+              <!-- 4 claves de sala que alimentan el candado final -->
+            </div>
+          </div>
+
+          <!-- Terminal de Pistas (Máximo 5 por reto con descuento de tiempo) -->
+          <div class="rounded-3xl bg-slate-900/95 border border-slate-800 p-5 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 class="font-bold text-sm text-amber-300 flex items-center gap-1.5">
+                  <span>💡</span> Terminal de Pistas
+                </h3>
+                <p class="text-[11px] text-slate-400">Máx. 5 pistas en este reto · Restan tiempo</p>
+              </div>
+              <span id="stage-hints-badge" class="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 font-mono text-xs font-bold text-amber-300">
+                0 / 5 usadas
+              </span>
+            </div>
+
+            <!-- Lista de las 5 pistas del reto actual -->
+            <div id="hints-list" class="space-y-2.5">
+              <!-- Se genera dinámicamente -->
+            </div>
+          </div>
+
+        </aside>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------------- -->
+    <!-- PANTALLA 3: INFORME FINAL Y EVALUACIÓN DEL EQUIPO                   -->
+    <!-- ------------------------------------------------------------------- -->
+    <section id="view-results" class="hidden max-w-5xl mx-auto space-y-6">
+      <div class="rounded-3xl bg-slate-900/95 border border-slate-800 p-6 sm:p-10 shadow-2xl space-y-8">
+        
+        <!-- Cabecera del Resultado -->
+        <div id="result-banner" class="text-center space-y-3 max-w-2xl mx-auto">
+          <!-- Se rellena dinámicamente según victoria o tiempo agotado -->
+        </div>
+
+        <!-- Métricas Clave en 4 Tarjetas -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
+            <div class="text-xs text-slate-400 uppercase font-semibold">Tiempo Restante</div>
+            <div id="res-time-left" class="font-mono text-2xl sm:text-3xl font-extrabold text-emerald-400 mt-1">00:00</div>
+            <div id="res-time-used" class="text-[11px] text-slate-500 mt-1">Consumido: 00:00</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
+            <div class="text-xs text-slate-400 uppercase font-semibold">Retos Superados</div>
+            <div id="res-modules" class="font-mono text-2xl sm:text-3xl font-extrabold text-sky-400 mt-1">5 / 5</div>
+            <div id="res-errors" class="text-[11px] text-slate-500 mt-1">Intentos fallidos: 0</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
+            <div class="text-xs text-slate-400 uppercase font-semibold">Pistas Utilizadas</div>
+            <div id="res-hints" class="font-mono text-2xl sm:text-3xl font-extrabold text-amber-400 mt-1">0 / 25</div>
+            <div id="res-penalty" class="text-[11px] text-rose-400 mt-1">Penalización: -00:00</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-gradient-to-br from-indigo-950 to-slate-950 border-2 border-indigo-500/50 text-center">
+            <div class="text-xs text-indigo-300 uppercase font-bold">Calificación Final</div>
+            <div id="res-final-grade" class="font-mono text-3xl sm:text-4xl font-extrabold text-white mt-1">0.00</div>
+            <div class="text-[11px] text-indigo-300 mt-1">Sobre 10 puntos</div>
+          </div>
+        </div>
+
+        <!-- Rúbrica de Organización como Equipo + Desglose de Calificación -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          <!-- Coevaluación de Organización Grupal -->
+          <div class="lg:col-span-7 p-5 sm:p-6 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 class="font-bold text-base text-white flex items-center gap-2">
+                <span>🤝</span> Rúbrica de Organización y Cohesión de Equipo (1,5 pts)
+              </h3>
+              <span class="text-xs text-slate-400">Verificación grupal</span>
+            </div>
+            <p class="text-xs text-slate-400">
+              Marcad con honestidad los indicadores que vuestro equipo ha cumplido durante la sesión (impacta directamente en el 15% de la nota de competencia social):
+            </p>
+            <div class="space-y-2.5 text-xs sm:text-sm" id="team-rubric-checks">
+              <label class="flex items-start gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-indigo-500/50">
+                <input type="checkbox" checked onchange="recalculateFinalGrade()" class="team-rubric-check mt-0.5 w-4 h-4 accent-indigo-500" />
+                <span><strong>Cumplimiento de roles:</strong> Cada integrante ejerció su función asignada (coordinación, análisis, descifrado y gestión de pistas).</span>
+              </label>
+              <label class="flex items-start gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-indigo-500/50">
+                <input type="checkbox" checked onchange="recalculateFinalGrade()" class="team-rubric-check mt-0.5 w-4 h-4 accent-indigo-500" />
+                <span><strong>Consenso antes de pedir pistas:</strong> Debatimos en grupo las posibles soluciones antes de gastar tiempo en pistas.</span>
+              </label>
+              <label class="flex items-start gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-indigo-500/50">
+                <input type="checkbox" checked onchange="recalculateFinalGrade()" class="team-rubric-check mt-0.5 w-4 h-4 accent-indigo-500" />
+                <span><strong>Escucha activa e inclusión:</strong> Todos los miembros aportaron ideas y fueron escuchados con respeto (conducta prosocial).</span>
+              </label>
+              <label class="flex items-start gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-indigo-500/50">
+                <input type="checkbox" checked onchange="recalculateFinalGrade()" class="team-rubric-check mt-0.5 w-4 h-4 accent-indigo-500" />
+                <span><strong>Argumentación con los Temas 1 y 2:</strong> Justificamos las claves usando conceptos de neurociencia, cognición, antropología y sociología.</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Desglose Matemático e Insignias -->
+          <div class="lg:col-span-5 space-y-4">
+            <div class="notebook-card rounded-2xl p-5 border-2 border-slate-700 space-y-3">
+              <h3 class="font-notebook text-xl font-bold text-slate-800 border-b border-slate-300 pb-1.5">
+                📊 Desglose de Evaluación FOPP
+              </h3>
+              <div class="space-y-2 text-xs text-slate-700" id="grade-breakdown-list">
+                <!-- Se rellena dinámicamente -->
+              </div>
+            </div>
+
+            <!-- Insignias Desbloqueadas -->
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-400">🏅 Insignias Obtenidas</div>
+              <div id="badges-container" class="flex flex-wrap gap-2">
+                <!-- Insignias dinámicas -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botones de Exportación para el Cuaderno del Profesor -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800">
+          <button onclick="openLeaderboardModal()" class="px-5 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-sm font-bold transition flex items-center gap-2">
+            <span>🏆</span> Ver Ranking de la Clase
+          </button>
+          <div class="flex flex-wrap gap-3">
+            <button onclick="copyGradeSummary()" class="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-semibold transition flex items-center gap-2">
+              <span>📋</span> Copiar Acta al Portapapeles
+            </button>
+            <button onclick="exportTeamReportTXT()" class="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg transition flex items-center gap-2">
+              <span>💾</span> Descargar Informe (.txt)
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL DE CONFIRMACIÓN DE PISTA (AVISO DE DESCUENTO DE TIEMPO)         -->
+  <!-- ===================================================================== -->
+  <div id="hint-confirm-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="max-w-md w-full rounded-3xl bg-slate-900 border border-amber-500/40 p-6 shadow-2xl space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl">
+          ⏳
+        </div>
+        <div>
+          <h3 class="font-bold text-lg text-white">¿Solicitar Pista <span id="modal-hint-num">1</span>/5?</h3>
+          <p class="text-xs text-amber-300 font-mono">Penalización: -<span id="modal-hint-penalty">00:30</span> del reloj</p>
+        </div>
+      </div>
+      <p class="text-sm text-slate-300 leading-relaxed">
+        El <strong>Gestor/a de Pistas</strong> debe confirmar que todo el equipo está de acuerdo. Desbloquear esta ayuda descontará tiempo inmediato de vuestra cuenta atrás.
+      </p>
+      <div class="flex justify-end gap-3 pt-2">
+        <button onclick="closeHintModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition">
+          Cancelar
+        </button>
+        <button onclick="confirmUnlockHint()" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-extrabold transition">
+          Confirmar y Descontar Tiempo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL DE CLASIFICACIÓN EN TIEMPO REAL (PIZARRA DIGITAL DEL AULA)      -->
+  <!-- ===================================================================== -->
+  <div id="leaderboard-modal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
+    <div class="max-w-5xl w-full max-h-[90vh] flex flex-col rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden">
+      
+      <!-- Cabecera del Ranking -->
+      <div class="p-5 sm:p-6 bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl">
+            🏆
+          </div>
+          <div>
+            <div class="flex items-center gap-2.5">
+              <h3 class="font-extrabold text-lg sm:text-2xl text-white tracking-tight">Clasificación en Vivo · Aula FOPP</h3>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                EN DIRECTO
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Progreso sincronizado de todos los equipos en HUMAN_BEHAVIOR.EXE</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <!-- Filtro por grupo en memoria -->
+          <select id="leaderboard-course-filter" onchange="renderLeaderboardTable()" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
+            <option value="ALL">Todos los grupos</option>
+            <option value="4º ESO A - FOPP">4º ESO A - FOPP</option>
+            <option value="4º ESO B - FOPP">4º ESO B - FOPP</option>
+            <option value="4º ESO C - FOPP">4º ESO C - FOPP</option>
+            <option value="4º ESO D - FOPP">4º ESO D - FOPP</option>
+          </select>
+
+          <button onclick="closeLeaderboardModal()" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xl font-bold transition">
+            &times;
+          </button>
+        </div>
+      </div>
+
+      <!-- Cuerpo de la Tabla de Equipos -->
+      <div class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3" id="leaderboard-list-container">
+        <div class="text-center py-12 text-slate-400 text-sm">
+          Conectando con la telemetría del aula...
+        </div>
+      </div>
+
+      <!-- Pie informativo -->
+      <div class="px-6 py-3 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+        <span>Criterio de ordenación: 1º Escape completado · 2º Módulos superados · 3º Tiempo restante · 4º Menor uso de pistas</span>
+        <span id="leaderboard-sync-status" class="font-mono text-emerald-400">● Sincronizado</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL PANEL DOCENTE (SIN CLAVE POR DEFECTO VISIBLE EN INSTRUCCIONES)  -->
+  <!-- ===================================================================== -->
+  <div id="teacher-modal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="max-w-lg w-full rounded-3xl bg-slate-900 border border-slate-700 p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-lg text-white flex items-center gap-2">
+          <span>🎓</span> Panel de Control Docente (4º ESO FOPP)
+        </h3>
+        <button onclick="closeTeacherModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+      </div>
+
+      <!-- Pantalla de bloqueo PIN (sin mostrar clave por defecto) -->
+      <div id="teacher-pin-box" class="space-y-3">
+        <p class="text-sm text-slate-300">Introduce la clave de acceso del profesorado para consultar las soluciones, proyectar el ranking o gestionar la sesión del aula.</p>
+        <div class="flex gap-2">
+          <input type="password" id="teacher-pin-input" placeholder="Clave docente..." class="flex-1 px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono focus:outline-none focus:border-indigo-500" />
+          <button onclick="verifyTeacherPin()" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm">
+            Acceder
+          </button>
+        </div>
+        <p id="teacher-pin-error" class="hidden text-xs text-rose-400">Clave incorrecta. Acceso restringido al docente.</p>
+      </div>
+
+      <!-- Contenido desbloqueado para el profesor -->
+      <div id="teacher-unlocked-box" class="hidden space-y-4 text-sm">
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="font-bold text-indigo-300 text-xs uppercase">Claves Maestras de los 5 Retos</div>
+          <ul class="space-y-1.5 text-xs font-mono text-slate-300">
+            <li><strong>Módulo 1 (Química/Recompensa):</strong> Switches [Dopamina, Bloquean, Reflejos] + Código <span class="text-emerald-400 font-bold">8331</span></li>
+            <li><strong>Módulo 2 (Procesador/Cognición):</strong> 4 nodos resueltos + Clave <span class="text-emerald-400 font-bold">MENTE</span></li>
+            <li><strong>Módulo 3 (Trampa Cultural):</strong> 3 casos relativistas + Código <span class="text-emerald-400 font-bold">2015</span></li>
+            <li><strong>Módulo 4 (Red Social/Igualdad):</strong> 3 casos sociales + Código <span class="text-emerald-400 font-bold">3495</span></li>
+            <li><strong>Módulo 5 (Candado Final):</strong> Protocolo de síntesis + Código <span class="text-emerald-400 font-bold">HUMANO</span></li>
+          </ul>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="font-semibold text-slate-200">Ajuste Docente de Observación Grupal:</label>
+            <span id="teacher-bonus-label" class="font-mono font-bold text-amber-300">+0.00 pts</span>
+          </div>
+          <input type="range" id="teacher-bonus-slider" min="-1" max="1" step="0.25" value="0" oninput="updateTeacherBonus(this.value)" class="w-full accent-indigo-500" />
+          <p class="text-[11px] text-slate-400">Permite sumar o restar hasta 1 punto según tu observación directa en el aula (silencio, respeto, cooperación).</p>
+        </div>
+
+        <!-- Gestión de la Clasificación del Aula -->
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+          <div class="font-bold text-amber-300 text-xs uppercase">Gestión de Clasificación en Vivo (Pizarra)</div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="closeTeacherModal(); openLeaderboardModal();" class="px-3.5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-semibold hover:bg-amber-500/30">
+              🏆 Proyectar Ranking
+            </button>
+            <button onclick="exportAllLeaderboardCSV()" class="px-3.5 py-2 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-200 text-xs font-semibold hover:bg-indigo-500/30">
+              📥 Descargar Notas de Clase
+            </button>
+            <button id="btn-clear-board" onclick="handleClearLeaderboardClick()" class="px-3.5 py-2 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold hover:bg-rose-500/30">
+              🗑️ Limpiar Ranking
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button onclick="addExtraMinutes(5)" class="px-3.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold hover:bg-emerald-600/30">
+            +5 min a este equipo
+          </button>
+          <button onclick="resetFullGame()" class="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold hover:bg-slate-700">
+            Reiniciar este dispositivo
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- NOTIFICACIÓN TOAST FLOTANTE                                           -->
+  <!-- ===================================================================== -->
+  <div id="toast-banner" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+    <div class="px-4 py-3 rounded-2xl bg-slate-800 border border-slate-600 text-white text-sm font-medium shadow-2xl flex items-center gap-2.5">
+      <span id="toast-icon">✅</span>
+      <span id="toast-msg">Mensaje del sistema</span>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- LÓGICA DE LA APLICACIÓN (MOTOR DEL ESCAPE ROOM Y EVALUACIÓN)          -->
+  <!-- ===================================================================== -->
+  <script>
+    /**
+     * ESTADO GLOBAL DEL ESCAPE ROOM
+     * Controla el tiempo (40 min = 2400 segundos), progreso, pistas usadas,
+     * penalizaciones acumuladas, errores cometidos y datos del equipo.
+     */
+    const INITIAL_TIME_SECONDS = 40 * 60; // 40 minutos exactos
+    const HINT_PENALTIES = [30, 45, 60, 90, 120]; // Penalización en segundos por pista (1 a 5)
+    const LOCAL_LEADERBOARD_KEY = 'fopp_escape_leaderboard_local_v1';
+
+    const gameState = {
+      started: false,
+      finished: false,
+      escaped: false,
+      timeRemaining: INITIAL_TIME_SECONDS,
+      timerInterval: null,
+      heartbeatInterval: null,
+      soundEnabled: true,
+      currentStage: 0, // 0 a 4 (5 retos en total)
+      unlockedStages: [true, false, false, false, false],
+      completedStages: [false, false, false, false, false],
+      hintsRevealed: [0, 0, 0, 0, 0], // Número de pistas reveladas en cada reto (0..5)
+      totalPenaltySeconds: 0,
+      failedAttempts: 0,
+      teacherBonus: 0,
+      pendingHintStage: null,
+      teamDocId: null,
+      latestCalculatedGrade: 0,
+      team: {
+        name: '',
+        course: '4º ESO A - FOPP',
+        coord: '',
+        analyst: '',
+        hacker: '',
+        hintsManager: ''
+      }
+    };
+
+    /**
+     * DEFINICIÓN PEDAGÓGICA DE LOS 5 RETOS (TEMAS 1 Y 2 + VÍDEO NOTEBOOK)
+     * Cada reto dispone de narrativa, actividad interactiva y exactamente 5 pistas progresivas.
+     */
+    const STAGES_DATA = [
+      {
+        id: 0,
+        shortTitle: '01. Química',
+        title: 'Módulo 01: El Circuito de Recompensa',
+        badge: 'PILAR 1 · TEMA 1: NEUROCIENCIA Y ADICCIONES',
+        icon: '🧠',
+        color: 'sky',
+        keyLabel: '8331',
+        narrative: '«Primera pista del sistema: Tu cerebro te premia liberando sustancias placenteras cuando logras algo, pero las adicciones secuestran esta mecánica para atraparte».',
+        hints: [
+          'Pista 1 (Sinapsis): Revisa el apartado 2 y 5 del Tema 1. El neurotransmisor clave del placer y la motivación es la dopamina, mientras que la adrenalina activa la alerta ante el peligro.',
+          'Pista 2 (Drogas y Reflejos): Las drogas depresoras (alcohol, heroína) bloquean los receptores impidiendo que el neurotransmisor vuelva a su neurona; en los actos reflejos actúa rápido la médula espinal antes que el cerebro.',
+          'Pista 3 (Dígitos 1 y 2): El cerebro humano tiene unos 86.000 millones de neuronas (primer dígito: 8). La adolescencia se divide en 3 etapas: temprana, media y tardía (segundo dígito: 3).',
+          'Pista 4 (Dígitos 3 y 4): Para «afilar el hacha» cuidamos 3 facetas (física, mental y social → 3). En España mueren unas 1.000 personas al año por sobredosis (1 millar → 1).',
+          'Pista 5 (Solución Directa): Selecciona en los desplegables [Dopamina / Bloquean / Médula espinal] e introduce el PIN bio-numérico: 8331.'
+        ]
+      },
+      {
+        id: 1,
+        shortTitle: '02. Procesador',
+        title: 'Módulo 02: El Procesador Cognitivo',
+        badge: 'PILAR 2 · TEMA 1: COGNICIÓN Y ADOLESCENCIA',
+        icon: '⚙️',
+        color: 'amber',
+        keyLabel: 'MENTE',
+        narrative: '«Segunda pista: Tu mente capta información del entorno, filtra las distracciones y almacena los datos clave. Esa cognición es la maquinaria exacta para descifrar esta habitación».',
+        hints: [
+          'Pista 1 (Habilidades Cognitivas): Según el apartado 3 del Tema 1, la habilidad comparada con el «disco duro personal» de tu cerebro es la Memoria y aprendizaje.',
+          'Pista 2 (Emociones y Platón): Las emociones (amígdala/sistema límbico) son las «guardianas del aprendizaje». En la Alegoría de la Caverna, Platón afirma que salimos de las sombras mediante la razón y el pensamiento crítico.',
+          'Pista 3 (Adolescencia): En el caso de Álex (16 años), los adolescentes toman más decisiones impulsivas porque las áreas cerebrales de control de impulsos y planificación aún están madurando.',
+          'Pista 4 (Formación de la clave): Toma la primera letra de cada concepto clave en orden: Memoria (M) + Emociones (E) + Neurotransmisores (N) + adolescencia Tardía (T) + drogas Estimulantes (E).',
+          'Pista 5 (Solución Directa): Marca las respuestas correctas en los 4 nodos cognitivos y escribe la palabra clave de 5 letras: MENTE.'
+        ]
+      },
+      {
+        id: 2,
+        shortTitle: '03. Cultura',
+        title: 'Módulo 03: La Trampa Cultural',
+        badge: 'PILAR 3 · TEMA 2: ANTROPOLOGÍA Y DIVERSIDAD',
+        icon: '🌍',
+        color: 'emerald',
+        keyLabel: '2015',
+        narrative: '«Tercera pista: Evaluar a otras sociedades basándote exclusivamente en tus propias reglas se llama etnocentrismo. Necesitas abrir tu perspectiva relativista para avanzar».',
+        hints: [
+          'Pista 1 (Lenguaje y Cultura): En la anécdota de Puerto Real (Cádiz vs Albacete), «tener fatiga» significa cosas distintas según la cultura local: el lenguaje moldea cómo interpretamos la realidad.',
+          'Pista 2 (Relativismo vs Etnocentrismo): Ni la pasta otjize de los Himba (adaptación a la escasez de agua) ni los funerales coloridos de Ghana son «raros»; debemos aplicar el relativismo cultural y reconocer la universalidad de los ritos ante la muerte.',
+          'Pista 3 (Ritos de paso): Según el apartado 9 del Tema 2, los ritos de paso son ceremonias que marcan el fin de la infancia y el inicio de responsabilidades adultas.',
+          'Pista 4 (Cálculo de edades): En Japón, la ceremonia «Seijin Shiki» celebra la mayoría de edad a los 20 años. En Latinoamérica, la fiesta de la «Quinceañera» se celebra a los 15 años.',
+          'Pista 5 (Solución Directa): Selecciona las 3 interpretaciones antropológicas correctas y une ambas edades sin espacios para obtener el código: 2015.'
+        ]
+      },
+      {
+        id: 3,
+        shortTitle: '04. Red Social',
+        title: 'Módulo 04: La Red Social y el Grupo',
+        badge: 'PILAR 4 · TEMA 2: SOCIOLOGÍA E IGUALDAD',
+        icon: '👥',
+        color: 'purple',
+        keyLabel: '3495',
+        narrative: '«Última pista: Tu personalidad adolescente se moldea desde fuera. La familia, los amigos y la presión de las redes actúan como agentes de socialización que dirigen tus pasos».',
+        hints: [
+          'Pista 1 (Presión de grupo): Para resistir la presión grupal sin perder nuestra identidad debemos practicar la asertividad: saber decir «NO» de forma firme y respetuosa.',
+          'Pista 2 (Estereotipos y Conducta): Etiquetar a Chema de «empollón» o decirle a Carlos que Enfermería no es para hombres son estereotipos y roles de género. Ayudar e incluir a otros es una conducta prosocial.',
+          'Pista 3 (Primer dato estadístico - Techo de cristal): Consulta el gráfico del apartado 7 (Igualdad de género, pág. 36): en 2024 las mujeres suponían solo el 34% de los miembros en juntas directivas de grandes empresas en España.',
+          'Pista 4 (Segundo dato estadístico - Conciliación): En el gráfico circular de esa misma página, de las personas que redujeron su jornada laboral tras tener un hijo, el 95% eran mujeres.',
+          'Pista 5 (Solución Directa): Marca las 3 opciones sociológicas correctas e introduce los dos porcentajes unidos (34% y 95%): 3495.'
+        ]
+      },
+      {
+        id: 4,
+        shortTitle: '05. Escape Final',
+        title: 'Módulo 05: Candado Maestro HUMAN_BEHAVIOR.EXE',
+        badge: 'SÍNTESIS FINAL · LIBERACIÓN DEL CENTRO DE CONTROL',
+        icon: '🏆',
+        color: 'rose',
+        keyLabel: 'HUMANO',
+        narrative: '«El comportamiento humano es el rompecabezas definitivo: eres una mezcla simultánea de química, procesos mentales, cultura y presión social. Integra las 4 claves y sal de aquí».',
+        hints: [
+          'Pista 1 (Estructura del candado): Necesitas introducir las 4 claves obtenidas en los módulos anteriores en orden (Química, Procesador, Cultura y Red Social).',
+          'Pista 2 (Recordatorio Claves 1 y 2): La clave numérica de Química es 8331 y la palabra cognitiva del Procesador es MENTE.',
+          'Pista 3 (Recordatorio Claves 3 y 4): El código de los ritos culturales es 2015 y el código estadístico de igualdad es 3495.',
+          'Pista 4 (Palabra Maestra de 6 letras): Completa la frase inicial del Tema 1 (pág. 5): «Solo hay una respuesta posible: El ser ______ es extraordinario».',
+          'Pista 5 (Solución Directa): Escribe 8331, MENTE, 2015, 3495, marca los 4 pilares de síntesis e introduce la palabra maestra: HUMANO.'
+        ]
+      }
+    ];
+
+    /**
+     * SINTETIZADOR DE AUDIO CON TONE.JS (SIN ARCHIVOS EXTERNOS)
+     */
+    function playSound(type) {
+      if (!gameState.soundEnabled || typeof Tone === 'undefined') return;
+      try {
+        if (Tone.context.state !== 'running') {
+          Tone.start();
+        }
+        const synth = new Tone.Synth({
+          oscillator: { type: type === 'error' || type === 'penalty' ? 'sawtooth' : 'triangle' },
+          envelope: { attack: 0.01, decay: 0.15, sustain: 0.05, release: 0.2 }
+        }).toDestination();
+
+        const now = Tone.now();
+        if (type === 'click') {
+          synth.triggerAttackRelease('C5', '32n', now);
+        } else if (type === 'success') {
+          synth.triggerAttackRelease('C5', '16n', now);
+          synth.triggerAttackRelease('E5', '16n', now + 0.09);
+          synth.triggerAttackRelease('G5', '8n', now + 0.18);
+        } else if (type === 'victory') {
+          synth.triggerAttackRelease('C5', '16n', now);
+          synth.triggerAttackRelease('E5', '16n', now + 0.1);
+          synth.triggerAttackRelease('G5', '16n', now + 0.2);
+          synth.triggerAttackRelease('C6', '4n', now + 0.3);
+        } else if (type === 'error') {
+          synth.triggerAttackRelease('A2', '8n', now);
+          synth.triggerAttackRelease('F2', '8n', now + 0.12);
+        } else if (type === 'penalty') {
+          synth.triggerAttackRelease('D3', '16n', now);
+          synth.triggerAttackRelease('G2', '8n', now + 0.1);
+        }
+      } catch (e) {
+        // Silenciar si el navegador bloquea WebAudio
+      }
+    }
+
+    function toggleSound() {
+      gameState.soundEnabled = !gameState.soundEnabled;
+      document.getElementById('sound-icon').textContent = gameState.soundEnabled ? '🔊' : '🔇';
+      showToast(gameState.soundEnabled ? 'Efectos de sonido activados' : 'Audio silenciado', gameState.soundEnabled ? '🔊' : '🔇');
+    }
+
+    /**
+     * SISTEMA DE NOTIFICACIONES TOAST (SUSTITUYE A ALERT)
+     */
+    let toastTimeout = null;
+    function showToast(msg, icon = 'ℹ️') {
+      const banner = document.getElementById('toast-banner');
+      document.getElementById('toast-msg').textContent = msg;
+      document.getElementById('toast-icon').textContent = icon;
+      banner.classList.remove('translate-y-20', 'opacity-0');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        banner.classList.add('translate-y-20', 'opacity-0');
+      }, 3400);
+    }
+
+    /**
+     * FORMATEO DE SEGUNDOS A MM:SS
+     */
+    function formatTime(totalSec) {
+      const safeSec = Math.max(0, Math.floor(totalSec));
+      const m = Math.floor(safeSec / 60);
+      const s = safeSec % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    /**
+     * INICIO DEL ESCAPE ROOM TRAS VALIDAR EL EQUIPO
+     */
+    function startEscapeRoom() {
+      const teamName = document.getElementById('input-team-name').value.trim();
+      const course = document.getElementById('input-team-course').value;
+      const coord = document.getElementById('role-coord').value.trim();
+      const analyst = document.getElementById('role-analyst').value.trim();
+      const hacker = document.getElementById('role-hacker').value.trim();
+      const hintsManager = document.getElementById('role-hints').value.trim();
+
+      const errorBox = document.getElementById('intro-error-box');
+      const filledMembers = [coord, analyst, hacker, hintsManager].filter(Boolean);
+
+      if (!teamName || filledMembers.length < 2) {
+        errorBox.classList.remove('hidden');
+        playSound('error');
+        return;
+      }
+
+      errorBox.classList.add('hidden');
+      gameState.team = {
+        name: teamName,
+        course,
+        coord: coord || 'Sin asignar',
+        analyst: analyst || 'Sin asignar',
+        hacker: hacker || 'Sin asignar',
+        hintsManager: hintsManager || 'Sin asignar'
+      };
+      gameState.started = true;
+
+      // Actualizar HUD superior
+      document.getElementById('hud-team-display').textContent = `Equipo: ${teamName} (${course})`;
+      document.getElementById('hud-progress').classList.remove('hidden');
+      document.getElementById('hud-hints-badge').classList.remove('hidden');
+
+      playSound('success');
+      showToast(`¡Cronómetro iniciado para ${teamName}! Tenéis 40 minutos.`, '⏱️');
+
+      // Cambiar de vista
+      document.getElementById('view-intro').classList.add('hidden');
+      document.getElementById('view-game').classList.remove('hidden');
+
+      // Generar ID único del equipo para la clasificación en vivo y sincronizar
+      gameState.teamDocId = 'team_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      syncCurrentTeamToLeaderboard();
+
+      // Iniciar cronómetro y latido de sincronización cada 15s
+      startTimer();
+      clearInterval(gameState.heartbeatInterval);
+      gameState.heartbeatInterval = setInterval(() => {
+        if (gameState.started && !gameState.finished) {
+          syncCurrentTeamToLeaderboard();
+        }
+      }, 15000);
+
+      renderStage(0);
+    }
+
+    /**
+     * MOTOR DEL CRONÓMETRO (CUENTA ATRÁS DE 40 MINUTOS)
+     */
+    function startTimer() {
+      updateTimerUI();
+      clearInterval(gameState.timerInterval);
+      gameState.timerInterval = setInterval(() => {
+        if (gameState.finished) {
+          clearInterval(gameState.timerInterval);
+          return;
+        }
+        gameState.timeRemaining -= 1;
+        updateTimerUI();
+
+        if (gameState.timeRemaining <= 0) {
+          gameState.timeRemaining = 0;
+          updateTimerUI();
+          finishGame(false);
+        }
+      }, 1000);
+    }
+
+    function updateTimerUI() {
+      const display = document.getElementById('timer-display');
+      const container = document.getElementById('timer-container');
+      const dot = document.getElementById('timer-dot');
+
+      display.textContent = formatTime(gameState.timeRemaining);
+
+      if (gameState.timeRemaining <= 180) { // Menos de 3 minutos
+        display.className = 'font-mono font-bold text-lg sm:text-2xl tracking-wider text-rose-400 animate-pulse';
+        container.className = 'relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-rose-950/70 border-2 border-rose-500 shadow-inner';
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
+      } else if (gameState.timeRemaining <= 600) { // Menos de 10 minutos
+        display.className = 'font-mono font-bold text-lg sm:text-2xl tracking-wider text-amber-300';
+        container.className = 'relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-950/50 border-2 border-amber-500/70 shadow-inner';
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+      } else {
+        display.className = 'font-mono font-bold text-lg sm:text-2xl tracking-wider text-emerald-400';
+        container.className = 'relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-950 border-2 border-slate-700 shadow-inner';
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+      }
+    }
+
+    /**
+     * APLICAR PENALIZACIÓN DE TIEMPO AL PEDIR UNA PISTA
+     */
+    function applyTimePenalty(seconds) {
+      gameState.timeRemaining = Math.max(0, gameState.timeRemaining - seconds);
+      gameState.totalPenaltySeconds += seconds;
+      updateTimerUI();
+      playSound('penalty');
+
+      // Efecto visual flotante junto al reloj
+      const spawn = document.getElementById('penalty-spawn');
+      const badge = document.createElement('div');
+      badge.className = 'penalty-float px-2 py-0.5 rounded-md bg-rose-600 text-white font-mono text-xs font-bold shadow-lg';
+      badge.textContent = `-${formatTime(seconds)}`;
+      spawn.appendChild(badge);
+      setTimeout(() => badge.remove(), 1450);
+
+      if (gameState.timeRemaining <= 0 && !gameState.finished) {
+        finishGame(false);
+      }
+    }
+
+    /**
+     * SISTEMA DE HASTA 5 PISTAS POR RETO CON CONFIRMACIÓN PREVIA
+     */
+    function requestHint(stageIdx) {
+      const currentCount = gameState.hintsRevealed[stageIdx];
+      if (currentCount >= 5) return;
+
+      gameState.pendingHintStage = stageIdx;
+      const penaltySec = HINT_PENALTIES[currentCount];
+
+      document.getElementById('modal-hint-num').textContent = currentCount + 1;
+      document.getElementById('modal-hint-penalty').textContent = formatTime(penaltySec);
+      document.getElementById('hint-confirm-modal').classList.remove('hidden');
+      playSound('click');
+    }
+
+    function closeHintModal() {
+      document.getElementById('hint-confirm-modal').classList.add('hidden');
+      gameState.pendingHintStage = null;
+    }
+
+    function confirmUnlockHint() {
+      const stageIdx = gameState.pendingHintStage;
+      if (stageIdx === null) return;
+
+      const hintIdx = gameState.hintsRevealed[stageIdx];
+      if (hintIdx < 5) {
+        const penaltySec = HINT_PENALTIES[hintIdx];
+        gameState.hintsRevealed[stageIdx] += 1;
+        applyTimePenalty(penaltySec);
+      }
+
+      closeHintModal();
+      renderHintsPanel(stageIdx);
+      updateHudProgress();
+      syncCurrentTeamToLeaderboard();
+    }
+
+    /**
+     * RENDERIZADO DE LA BARRA DE PROGRESO Y PISTAS LATERALES
+     */
+    function updateHudProgress() {
+      const desktopNav = document.getElementById('hud-progress');
+      const mobilePills = document.getElementById('mobile-stage-pills');
+      const totalHintsUsed = gameState.hintsRevealed.reduce((a, b) => a + b, 0);
+      document.getElementById('hud-hints-count').textContent = totalHintsUsed;
+
+      let desktopHtml = '';
+      let mobileHtml = '';
+
+      STAGES_DATA.forEach((st, idx) => {
+        const isCurrent = gameState.currentStage === idx;
+        const isDone = gameState.completedStages[idx];
+        const isUnlocked = gameState.unlockedStages[idx];
+
+        let stateClass = 'bg-slate-900 text-slate-500 border-slate-800 cursor-not-allowed';
+        let statusEmoji = '🔒';
+
+        if (isDone) {
+          stateClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30 cursor-pointer';
+          statusEmoji = '✅';
+        } else if (isCurrent) {
+          stateClass = 'bg-indigo-600 text-white border-indigo-400 shadow-md cursor-pointer';
+          statusEmoji = st.icon;
+        } else if (isUnlocked) {
+          stateClass = 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700 cursor-pointer';
+          statusEmoji = st.icon;
+        }
+
+        const onClickAttr = isUnlocked ? `onclick="renderStage(${idx})"` : '';
+
+        desktopHtml += `
+          <button ${onClickAttr} class="px-2.5 py-1 rounded-lg border text-xs font-semibold transition flex items-center gap-1.5 ${stateClass}">
+            <span>${statusEmoji}</span>
+            <span>${st.shortTitle}</span>
+          </button>
+        `;
+
+        mobileHtml += `
+          <button ${onClickAttr} class="shrink-0 px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${stateClass}">
+            <span>${statusEmoji}</span>
+            <span>${st.shortTitle}</span>
+          </button>
+        `;
+      });
+
+      desktopNav.innerHTML = desktopHtml;
+      mobilePills.innerHTML = mobileHtml;
+
+      // Renderizar Llavero de Claves Recuperadas
+      const keysGrid = document.getElementById('collected-keys-grid');
+      keysGrid.innerHTML = STAGES_DATA.slice(0, 4).map((st, idx) => {
+        const unlocked = gameState.completedStages[idx];
+        return `
+          <div class="p-2.5 rounded-xl border ${unlocked ? 'bg-emerald-100/90 border-emerald-500 text-emerald-950' : 'bg-slate-200/70 border-slate-300 text-slate-500'} text-center">
+            <div class="text-[10px] font-bold uppercase tracking-wider">${st.shortTitle}</div>
+            <div class="font-mono font-extrabold text-sm mt-0.5">${unlocked ? st.keyLabel : '????'}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderHintsPanel(stageIdx) {
+      const stage = STAGES_DATA[stageIdx];
+      const revealedCount = gameState.hintsRevealed[stageIdx];
+      document.getElementById('stage-hints-badge').textContent = `${revealedCount} / 5 usadas`;
+
+      const hintsList = document.getElementById('hints-list');
+      let html = '';
+
+      for (let i = 0; i < 5; i++) {
+        const penaltyLabel = formatTime(HINT_PENALTIES[i]);
+        if (i < revealedCount) {
+          // Pista ya desbloqueada
+          html += `
+            <div class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-100 leading-relaxed">
+              <div class="font-bold text-amber-300 mb-1 flex items-center justify-between">
+                <span>🔓 Pista ${i + 1} Desbloqueada</span>
+                <span class="font-mono text-[11px] text-rose-300">-${penaltyLabel}</span>
+              </div>
+              <p>${stage.hints[i]}</p>
+            </div>
+          `;
+        } else if (i === revealedCount) {
+          // Siguiente pista disponible para pedir
+          html += `
+            <button onclick="requestHint(${stageIdx})" class="w-full p-3 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-amber-500/40 hover:border-amber-400 text-left transition flex items-center justify-between group">
+              <div>
+                <div class="text-xs font-bold text-amber-300 group-hover:text-amber-200">💡 Desbloquear Pista ${i + 1}</div>
+                <div class="text-[11px] text-slate-400">Pulsa para pedir ayuda al sistema</div>
+              </div>
+              <span class="px-2.5 py-1 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold">
+                -${penaltyLabel}
+              </span>
+            </button>
+          `;
+        } else {
+          // Pista futura bloqueada hasta pedir la anterior
+          html += `
+            <div class="p-2.5 rounded-2xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between opacity-50">
+              <span class="text-xs font-medium text-slate-500">🔒 Pista ${i + 1} (Bloqueada)</span>
+              <span class="font-mono text-[11px] text-slate-600">-${penaltyLabel}</span>
+            </div>
+          `;
+        }
+      }
+
+      hintsList.innerHTML = html;
+    }
+
+    /**
+     * RENDERIZADO DE CADA UNO DE LOS 5 RETOS INTERACTIVOS
+     */
+    function renderStage(stageIdx) {
+      gameState.currentStage = stageIdx;
+      updateHudProgress();
+      renderHintsPanel(stageIdx);
+
+      const container = document.getElementById('challenge-container');
+      const stage = STAGES_DATA[stageIdx];
+
+      const headerHtml = `
+        <div class="border-b border-slate-800 pb-5 mb-6">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <span class="px-3 py-1 rounded-full bg-${stage.color}-500/15 border border-${stage.color}-500/30 text-${stage.color}-300 font-mono text-xs font-bold">
+              ${stage.badge}
+            </span>
+            ${gameState.completedStages[stageIdx] ? '<span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold">✅ MÓDULO SUPERADO</span>' : ''}
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2.5">
+            <span>${stage.icon}</span>
+            <span>${stage.title}</span>
+          </h2>
+          <blockquote class="mt-3 p-3.5 rounded-2xl bg-slate-950/90 border-l-4 border-${stage.color}-500 text-sm text-slate-300 italic">
+            ${stage.narrative}
+          </blockquote>
+        </div>
+      `;
+
+      let bodyHtml = '';
+
+      // -------------------------------------------------------------------
+      // RETO 1: NEUROCIENCIA, DOPAMINA Y CIRCUITOS DE RECOMPENSA (TEMA 1)
+      // -------------------------------------------------------------------
+      if (stageIdx === 0) {
+        bodyHtml = `
+          <div class="space-y-6">
+            <!-- Paso 1A: Calibración Sináptica (3 interruptores conceptuales) -->
+            <div class="p-4 sm:p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4">
+              <h3 class="font-bold text-base text-sky-300">Paso 1A · Calibración de Sinapsis y Adicciones</h3>
+              <p class="text-xs text-slate-400">Selecciona la afirmación neurobiológica correcta en cada circuito antes de introducir el PIN maestro:</p>
+
+              <div class="space-y-3 text-xs sm:text-sm">
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-slate-200 mb-2">1. Circuito de Recompensa Natural:</div>
+                  <select id="m1-q1" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Elige la opción correcta --</option>
+                    <option value="wrong1">La adrenalina bloquea el placer cuando comemos nuestra comida favorita.</option>
+                    <option value="ok">La dopamina genera placer y anticipación para motivarnos a repetir conductas beneficiosas.</option>
+                    <option value="wrong2">Los estímulos naturales nunca se autorregulan y siempre causan adicción.</option>
+                  </select>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-slate-200 mb-2">2. Secuestro químico por drogas depresoras (alcohol, heroína):</div>
+                  <select id="m1-q2" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Elige la opción correcta --</option>
+                    <option value="ok">Bloquean los receptores impidiendo que el neurotransmisor vuelva a su neurona original.</option>
+                    <option value="wrong1">El cerebro las elimina en segundos sin intervención del hígado.</option>
+                    <option value="wrong2">Reducen la dopamina provocando sensación inmediata de saciedad.</option>
+                  </select>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-slate-200 mb-2">3. Sistema Nervioso y Actos Reflejos (ej. retirar la mano del fuego):</div>
+                  <select id="m1-q3" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Elige la opción correcta --</option>
+                    <option value="wrong1">El cerebelo envía la orden antes de que actúen las neuronas sensitivas.</option>
+                    <option value="ok">La médula espinal emite una respuesta refleja rápida antes de que el cerebro procese el dolor.</option>
+                    <option value="wrong2">Solo interviene el sistema nervioso periférico sin pasar por la médula.</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paso 1B: Deducción del PIN Bio-Numérico de 4 Dígitos -->
+            <div class="notebook-card rounded-2xl p-5 border-2 border-slate-700 space-y-3">
+              <div class="font-notebook text-xl font-bold text-slate-800">📟 Expediente de Datos Neuro-Conductuales (Código de 4 cifras)</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-slate-700">
+                <div class="p-2.5 rounded-lg bg-white/80 border border-slate-300">
+                  <strong>Dígito 1:</strong> Primer dígito de los <em>86.000 millones</em> de neuronas que contiene el cerebro humano.
+                </div>
+                <div class="p-2.5 rounded-lg bg-white/80 border border-slate-300">
+                  <strong>Dígito 2:</strong> Número de <em>etapas de la adolescencia</em> (temprana, media y tardía) según el Tema 1.
+                </div>
+                <div class="p-2.5 rounded-lg bg-white/80 border border-slate-300">
+                  <strong>Dígito 3:</strong> Número de facetas saludables en la historia del leñador que debe <em>"afilar el hacha"</em>.
+                </div>
+                <div class="p-2.5 rounded-lg bg-white/80 border border-slate-300">
+                  <strong>Dígito 4:</strong> Miles de personas que mueren al año en España por sobredosis de drogas (<em>1.000</em> = ? mil).
+                </div>
+              </div>
+            </div>
+
+            <!-- Entrada de Código -->
+            <div id="stage-0-lock" class="p-5 rounded-2xl bg-slate-950 border-2 border-sky-500/40 flex flex-col sm:flex-row items-center gap-4">
+              <div class="flex-1 w-full">
+                <label class="block text-xs font-mono uppercase text-sky-300 mb-1">Introduce el PIN Bio-Numérico (4 dígitos):</label>
+                <input type="text" id="code-input-0" maxlength="4" placeholder="Ej. 0000" class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xl tracking-[0.4em] text-center focus:outline-none focus:border-sky-400" />
+              </div>
+              <button onclick="verifyStage0()" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm shadow-lg transition">
+                🔓 Desbloquear Módulo 01
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      // -------------------------------------------------------------------
+      // RETO 2: COGNICIÓN, PROCESADOR INTERNO Y ADOLESCENCIA (TEMA 1)
+      // -------------------------------------------------------------------
+      else if (stageIdx === 1) {
+        bodyHtml = `
+          <div class="space-y-6">
+            <div class="p-4 sm:p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4">
+              <h3 class="font-bold text-base text-amber-300">Paso 2A · Depuración del Procesador Cognitivo</h3>
+              <p class="text-xs text-slate-400">
+                Filtra las distracciones ambientales (como en el taller de lectura de Platón) y resuelve los 4 diagnósticos cognitivos del Tema 1:
+              </p>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs sm:text-sm">
+                <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                  <div class="font-bold text-amber-200">Nodo A · Almacenamiento</div>
+                  <p class="text-xs text-slate-400">Habilidad cognitiva comparada con el «disco duro personal» donde se guarda lo aprendido (clave: <strong>M</strong>):</p>
+                  <select id="m2-n1" class="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Selecciona --</option>
+                    <option value="ok">Memoria y aprendizaje</option>
+                    <option value="w1">Percepción sensorial</option>
+                    <option value="w2">Acto reflejo medular</option>
+                  </select>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                  <div class="font-bold text-amber-200">Nodo B · Guardianas del Aprendizaje</div>
+                  <p class="text-xs text-slate-400">Reguladas por la amígdala y el sistema límbico; pueden bloquear el estudio por ansiedad o potenciarlo (clave: <strong>E</strong>):</p>
+                  <select id="m2-n2" class="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Selecciona --</option>
+                    <option value="w1">Etnocentrismo</option>
+                    <option value="ok">Emociones</option>
+                    <option value="w2">Estratificación</option>
+                  </select>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                  <div class="font-bold text-amber-200">Nodo C · La Caverna de Platón</div>
+                  <p class="text-xs text-slate-400">Según Platón en «La República», ¿qué herramienta nos permite escapar de las sombras sensoriales hacia la verdad?</p>
+                  <select id="m2-n3" class="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Selecciona --</option>
+                    <option value="w1">La simple opinión impulsiva</option>
+                    <option value="ok">La razón y el pensamiento crítico</option>
+                    <option value="w2">La conformidad con el grupo</option>
+                  </select>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                  <div class="font-bold text-amber-200">Nodo D · El Caso de Álex (16 años)</div>
+                  <p class="text-xs text-slate-400">Álex se pregunta «¿Quién soy?» y sufre cambios bruscos de humor. ¿Por qué los adolescentes toman más decisiones impulsivas?</p>
+                  <select id="m2-n4" class="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Selecciona --</option>
+                    <option value="ok">Las áreas cerebrales de control de impulsos y planificación aún están madurando.</option>
+                    <option value="w1">Porque carecen totalmente de desarrollo cognitivo lógico.</option>
+                    <option value="w2">Porque ya han alcanzado la adolescencia tardía (18-21 años).</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Enigma de la Palabra Clave -->
+            <div class="notebook-card rounded-2xl p-5 border-2 border-slate-700">
+              <div class="font-notebook text-xl font-bold text-slate-800 mb-1">🧩 Acertijo del Procesador (5 Letras)</div>
+              <p class="text-xs sm:text-sm text-slate-700">
+                Une las iniciales de: <strong>M</strong>emoria + <strong>E</strong>mociones + <strong>N</strong>eurotransmisores + adolescencia <strong>T</strong>ardía + drogas <strong>E</strong>stimulantes. Es también el objeto de estudio de la Psicología junto a la conducta.
+              </p>
+            </div>
+
+            <!-- Entrada de Código -->
+            <div id="stage-1-lock" class="p-5 rounded-2xl bg-slate-950 border-2 border-amber-500/40 flex flex-col sm:flex-row items-center gap-4">
+              <div class="flex-1 w-full">
+                <label class="block text-xs font-mono uppercase text-amber-300 mb-1">Introduce la Palabra Clave Cognitiva (5 letras):</label>
+                <input type="text" id="code-input-1" maxlength="5" placeholder="Ej. CEREB" class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xl tracking-[0.35em] uppercase text-center focus:outline-none focus:border-amber-400" />
+              </div>
+              <button onclick="verifyStage1()" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg transition">
+                🔓 Desbloquear Módulo 02
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      // -------------------------------------------------------------------
+      // RETO 3: ANTROPOLOGÍA Y LA TRAMPA CULTURAL (TEMA 2)
+      // -------------------------------------------------------------------
+      else if (stageIdx === 2) {
+        bodyHtml = `
+          <div class="space-y-6">
+            <div class="p-4 sm:p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4">
+              <h3 class="font-bold text-base text-emerald-300">Paso 3A · Desactivación de Sesgos Etnocéntricos</h3>
+              <p class="text-xs text-slate-400">
+                Analiza estos 3 casos antropológicos del Tema 2 y selecciona la interpretación científica correcta para evitar la trampa cultural:
+              </p>
+
+              <div class="space-y-3 text-xs sm:text-sm">
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-emerald-200 mb-1.5">Caso 1 · El malentendido de Puerto Real (Cádiz vs Albacete):</div>
+                  <p class="text-xs text-slate-400 mb-2">Tomás dice en clase «tengo fatiga» (ganas de vomitar en Cádiz) y el profesor de Albacete entiende que «está cansado».</p>
+                  <select id="m3-c1" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Diagnóstico antropológico --</option>
+                    <option value="ok">El lenguaje y los significados culturales moldean cómo interpretamos la realidad.</option>
+                    <option value="w1">Demuestra que una variedad lingüística es superior a la otra.</option>
+                  </select>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-emerald-200 mb-1.5">Caso 2 · Los Himba de Namibia (pasta otjize) y los funerales de Ghana:</div>
+                  <p class="text-xs text-slate-400 mb-2">Los Himba usan ocre y grasa por la escasez de agua; en Ghana celebran funerales coloridos con ataúdes temáticos.</p>
+                  <select id="m3-c2" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Diagnóstico antropológico --</option>
+                    <option value="w1">Etnocentrismo: son costumbres raras porque no coinciden con las europeas.</option>
+                    <option value="ok">Relativismo cultural y universalidad: cada cultura se adapta a su entorno, aunque todas comparten ritos ante la muerte.</option>
+                  </select>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-emerald-200 mb-1.5">Caso 3 · Ritos de paso hacia la vida adulta (Apartado 9):</div>
+                  <p class="text-xs text-slate-400 mb-2">Compara el <em>Seijin Shiki</em> en Japón, la <em>Quinceañera</em> en Latinoamérica y el <em>Rumspringa</em> Amish.</p>
+                  <select id="m3-c3" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Diagnóstico antropológico --</option>
+                    <option value="ok">Son ceremonias o pruebas culturales que simbolizan el fin de la infancia y el inicio de responsabilidades adultas.</option>
+                    <option value="w1">La globalización ha eliminado por completo todas las tradiciones locales.</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Enigma Numérico de Ritos de Paso -->
+            <div class="notebook-card rounded-2xl p-5 border-2 border-slate-700">
+              <div class="font-notebook text-xl font-bold text-slate-800 mb-1">🗿 Código Cronológico de Ritos de Paso (4 cifras)</div>
+              <p class="text-xs sm:text-sm text-slate-700">
+                Combina sin espacios las dos edades exactas citadas en el Tema 2 (pág. 42):<br>
+                <strong>[Edad del rito japonés «Seijin Shiki»]</strong> + <strong>[Edad del rito latinoamericano de la «Quinceañera»]</strong> = <code class="bg-emerald-100 text-emerald-900 px-1.5 py-0.5 rounded font-mono font-bold">????</code>
+              </p>
+            </div>
+
+            <!-- Entrada de Código -->
+            <div id="stage-2-lock" class="p-5 rounded-2xl bg-slate-950 border-2 border-emerald-500/40 flex flex-col sm:flex-row items-center gap-4">
+              <div class="flex-1 w-full">
+                <label class="block text-xs font-mono uppercase text-emerald-300 mb-1">Introduce el Código Cultural (4 dígitos):</label>
+                <input type="text" id="code-input-2" maxlength="4" placeholder="Ej. 1821" class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xl tracking-[0.4em] text-center focus:outline-none focus:border-emerald-400" />
+              </div>
+              <button onclick="verifyStage2()" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg transition">
+                🔓 Desbloquear Módulo 03
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      // -------------------------------------------------------------------
+      // RETO 4: SOCIOLOGÍA, PRESIÓN DE GRUPO E IGUALDAD DE GÉNERO (TEMA 2)
+      // -------------------------------------------------------------------
+      else if (stageIdx === 3) {
+        bodyHtml = `
+          <div class="space-y-6">
+            <div class="p-4 sm:p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4">
+              <h3 class="font-bold text-base text-purple-300">Paso 4A · Auditoría de Socialización y Presión Grupal</h3>
+              <p class="text-xs text-slate-400">
+                Resuelve los 3 dilemas sociológicos del Tema 2 (agentes de socialización, presión de grupo y estereotipos):
+              </p>
+
+              <div class="space-y-3 text-xs sm:text-sm">
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-purple-200 mb-1.5">1. Resistencia a la Presión de Grupo (Escenario fiesta/alcohol):</div>
+                  <select id="m4-s1" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- ¿Qué habilidad social clave debemos aplicar? --</option>
+                    <option value="w1">Conformidad social para no perder popularidad.</option>
+                    <option value="ok">Asertividad: saber decir «NO» de forma firme pero respetuosa manteniendo nuestros valores.</option>
+                  </select>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-purple-200 mb-1.5">2. El caso de Chema («empollones» vs «populares») y Carlos (Enfermería):</div>
+                  <select id="m4-s2" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- ¿Qué fenómeno sociológico limita sus elecciones? --</option>
+                    <option value="ok">Los estereotipos y roles de género tradicionales que etiquetan y limitan la libertad individual.</option>
+                    <option value="w1">Una ley escrita que prohíbe a los hombres estudiar enfermería.</option>
+                  </select>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <div class="font-semibold text-purple-200 mb-1.5">3. Conductas Prosociales vs Antisociales:</div>
+                  <select id="m4-s3" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200">
+                    <option value="">-- Identifica la conducta prosocial --</option>
+                    <option value="w1">Reírse de un compañero que saca buenas notas para encajar.</option>
+                    <option value="ok">Practicar la empatía, incluir activamente a compañeros aislados y resolver conflictos pacíficamente.</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Datos Oficiales de Igualdad de Género (Tema 2, pág. 36) -->
+            <div class="notebook-card rounded-2xl p-5 border-2 border-slate-700 space-y-3">
+              <div class="font-notebook text-xl font-bold text-slate-800">📊 Telemetría de Igualdad de Género en España (4 cifras)</div>
+              <p class="text-xs text-slate-700">
+                Según los gráficos del Apartado 7 (<em>Igualdad de género</em>, pág. 36):
+              </p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-800">
+                <div class="p-3 rounded-xl bg-white border border-slate-300">
+                  <div class="font-bold text-purple-800">1. Techo de Cristal (Juntas Directivas)</div>
+                  <p class="mt-1">En 2024, las mujeres suponían solo el <strong>[ ?? ]%</strong> de los miembros de juntas directivas de las mayores empresas de España (frente al 66% de hombres).</p>
+                </div>
+                <div class="p-3 rounded-xl bg-white border border-slate-300">
+                  <div class="font-bold text-purple-800">2. Conciliación y Cuidados</div>
+                  <p class="mt-1">De todas las personas que decidieron reducir su jornada laboral tras tener un hijo, el <strong>[ ?? ]%</strong> eran mujeres (frente al 5% de hombres).</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Entrada de Código -->
+            <div id="stage-3-lock" class="p-5 rounded-2xl bg-slate-950 border-2 border-purple-500/40 flex flex-col sm:flex-row items-center gap-4">
+              <div class="flex-1 w-full">
+                <label class="block text-xs font-mono uppercase text-purple-300 mb-1">Une ambos porcentajes sin el símbolo % (4 dígitos):</label>
+                <input type="text" id="code-input-3" maxlength="4" placeholder="Ej. 5050" class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xl tracking-[0.4em] text-center focus:outline-none focus:border-purple-400" />
+              </div>
+              <button onclick="verifyStage3()" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm shadow-lg transition">
+                🔓 Desbloquear Módulo 04
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      // -------------------------------------------------------------------
+      // RETO 5 (FINAL): CANDADO MAESTRO HUMAN_BEHAVIOR.EXE
+      // -------------------------------------------------------------------
+      else if (stageIdx === 4) {
+        bodyHtml = `
+          <div class="space-y-6">
+            <div class="p-5 rounded-2xl bg-gradient-to-br from-rose-950/50 via-slate-950 to-indigo-950/50 border border-rose-500/40 space-y-4">
+              <h3 class="font-bold text-lg text-rose-300 flex items-center gap-2">
+                <span>🔐</span> Protocolo Final de Integración Conductual
+              </h3>
+              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                Para apagar el bloqueo de <strong>HUMAN_BEHAVIOR.EXE</strong>, introducid las <strong>4 claves recuperadas</strong> en cada pilar del Centro de Control y escribid la <strong>Palabra Maestra</strong> de 6 letras que define al ser extraordinario estudiado en FOPP:
+              </p>
+
+              <!-- 4 Inputs para las claves de los 4 módulos anteriores -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="p-3 rounded-xl bg-slate-900 border border-sky-500/40">
+                  <label class="block text-[11px] font-bold text-sky-300 mb-1">01. Química</label>
+                  <input type="text" id="final-k1" maxlength="4" placeholder="4 dígitos" class="w-full px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center uppercase focus:outline-none focus:border-sky-400" />
+                </div>
+                <div class="p-3 rounded-xl bg-slate-900 border border-amber-500/40">
+                  <label class="block text-[11px] font-bold text-amber-300 mb-1">02. Procesador</label>
+                  <input type="text" id="final-k2" maxlength="5" placeholder="5 letras" class="w-full px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center uppercase focus:outline-none focus:border-amber-400" />
+                </div>
+                <div class="p-3 rounded-xl bg-slate-900 border border-emerald-500/40">
+                  <label class="block text-[11px] font-bold text-emerald-300 mb-1">03. Cultura</label>
+                  <input type="text" id="final-k3" maxlength="4" placeholder="4 dígitos" class="w-full px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center uppercase focus:outline-none focus:border-emerald-400" />
+                </div>
+                <div class="p-3 rounded-xl bg-slate-900 border border-purple-500/40">
+                  <label class="block text-[11px] font-bold text-purple-300 mb-1">04. Red Social</label>
+                  <input type="text" id="final-k4" maxlength="4" placeholder="4 dígitos" class="w-full px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center uppercase focus:outline-none focus:border-purple-400" />
+                </div>
+              </div>
+
+              <!-- Verificación de la Ecuación del Comportamiento -->
+              <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2 text-xs">
+                <div class="font-bold text-slate-200 mb-2">Confirma los 4 pilares que explican por qué hacemos lo que hacemos:</div>
+                <label class="flex items-center gap-2.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" id="final-chk-1" class="w-4 h-4 accent-rose-500" />
+                  <span><strong>Química cerebral:</strong> Neurotransmisores (dopamina) y hormonas (adrenalina) regulan nuestro placer y alerta.</span>
+                </label>
+                <label class="flex items-center gap-2.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" id="final-chk-2" class="w-4 h-4 accent-rose-500" />
+                  <span><strong>Procesos cognitivos:</strong> Atención, memoria, pensamiento crítico y gestión emocional guían nuestras decisiones.</span>
+                </label>
+                <label class="flex items-center gap-2.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" id="final-chk-3" class="w-4 h-4 accent-rose-500" />
+                  <span><strong>Diversidad cultural:</strong> Evitar el etnocentrismo nos permite comprender normas y ritos en su propio contexto.</span>
+                </label>
+                <label class="flex items-center gap-2.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" id="final-chk-4" class="w-4 h-4 accent-rose-500" />
+                  <span><strong>Socialización e igualdad:</strong> Asertividad frente a la presión grupal y ruptura de estereotipos de género.</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Palabra Maestra Final -->
+            <div id="stage-4-lock" class="p-5 rounded-2xl bg-slate-950 border-2 border-rose-500/50 flex flex-col sm:flex-row items-center gap-4">
+              <div class="flex-1 w-full">
+                <label class="block text-xs font-mono uppercase text-rose-300 mb-1">
+                  Palabra Maestra Final (6 letras · «El ser ______ es extraordinario»):
+                </label>
+                <input type="text" id="code-input-4" maxlength="6" placeholder="Ej. CEREBR" class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xl tracking-[0.35em] uppercase text-center focus:outline-none focus:border-rose-400" />
+              </div>
+              <button onclick="verifyStage4()" class="w-full sm:w-auto px-7 py-4 rounded-xl bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white font-extrabold text-sm shadow-lg transition">
+                🏆 ABRIR PUERTA DE SALIDA
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = headerHtml + bodyHtml;
+    }
+
+    /**
+     * FUNCIONES DE VALIDACIÓN DE CADA RETO
+     */
+    function triggerWrongFeedback(lockElementId, message) {
+      gameState.failedAttempts += 1;
+      playSound('error');
+      showToast(message, '❌');
+      const el = document.getElementById(lockElementId);
+      if (el) {
+        el.classList.remove('animate-shake');
+        void el.offsetWidth; // Reiniciar animación CSS
+        el.classList.add('animate-shake');
+      }
+      syncCurrentTeamToLeaderboard();
+    }
+
+    function completeStageAndAdvance(stageIdx, successMsg) {
+      gameState.completedStages[stageIdx] = true;
+      playSound('success');
+      showToast(successMsg, '🔓');
+
+      if (stageIdx < 4) {
+        gameState.unlockedStages[stageIdx + 1] = true;
+        syncCurrentTeamToLeaderboard();
+        renderStage(stageIdx + 1);
+      } else {
+        finishGame(true);
+      }
+    }
+
+    // Validación Módulo 01
+    function verifyStage0() {
+      const q1 = document.getElementById('m1-q1').value;
+      const q2 = document.getElementById('m1-q2').value;
+      const q3 = document.getElementById('m1-q3').value;
+      const code = document.getElementById('code-input-0').value.trim();
+
+      if (q1 !== 'ok' || q2 !== 'ok' || q3 !== 'ok') {
+        triggerWrongFeedback('stage-0-lock', 'Revisa los 3 interruptores de calibración sináptica del Paso 1A.');
+        return;
+      }
+      if (code !== '8331') {
+        triggerWrongFeedback('stage-0-lock', 'PIN Bio-Numérico incorrecto. Revisa los datos del expediente.');
+        return;
+      }
+      completeStageAndAdvance(0, '¡Módulo 01 desbloqueado! Clave 8331 guardada.');
+    }
+
+    // Validación Módulo 02
+    function verifyStage1() {
+      const n1 = document.getElementById('m2-n1').value;
+      const n2 = document.getElementById('m2-n2').value;
+      const n3 = document.getElementById('m2-n3').value;
+      const n4 = document.getElementById('m2-n4').value;
+      const code = document.getElementById('code-input-1').value.trim().toUpperCase();
+
+      if (n1 !== 'ok' || n2 !== 'ok' || n3 !== 'ok' || n4 !== 'ok') {
+        triggerWrongFeedback('stage-1-lock', 'Hay errores en los 4 nodos cognitivos del Paso 2A.');
+        return;
+      }
+      if (code !== 'MENTE') {
+        triggerWrongFeedback('stage-1-lock', 'Palabra clave cognitiva incorrecta. Une las 5 iniciales.');
+        return;
+      }
+      completeStageAndAdvance(1, '¡Módulo 02 desbloqueado! Clave MENTE guardada.');
+    }
+
+    // Validación Módulo 03
+    function verifyStage2() {
+      const c1 = document.getElementById('m3-c1').value;
+      const c2 = document.getElementById('m3-c2').value;
+      const c3 = document.getElementById('m3-c3').value;
+      const code = document.getElementById('code-input-2').value.trim();
+
+      if (c1 !== 'ok' || c2 !== 'ok' || c3 !== 'ok') {
+        triggerWrongFeedback('stage-2-lock', 'Revisa el análisis antropológico de los 3 casos culturales.');
+        return;
+      }
+      if (code !== '2015') {
+        triggerWrongFeedback('stage-2-lock', 'Código cronológico incorrecto. Revisa las edades de Seijin Shiki y Quinceañera.');
+        return;
+      }
+      completeStageAndAdvance(2, '¡Módulo 03 desbloqueado! Clave 2015 guardada.');
+    }
+
+    // Validación Módulo 04
+    function verifyStage3() {
+      const s1 = document.getElementById('m4-s1').value;
+      const s2 = document.getElementById('m4-s2').value;
+      const s3 = document.getElementById('m4-s3').value;
+      const code = document.getElementById('code-input-3').value.trim();
+
+      if (s1 !== 'ok' || s2 !== 'ok' || s3 !== 'ok') {
+        triggerWrongFeedback('stage-3-lock', 'Revisa las respuestas de socialización y presión grupal del Paso 4A.');
+        return;
+      }
+      if (code !== '3495') {
+        triggerWrongFeedback('stage-3-lock', 'Código estadístico incorrecto. Revisa los gráficos de igualdad del Tema 2.');
+        return;
+      }
+      completeStageAndAdvance(3, '¡Módulo 04 desbloqueado! Clave 3495 guardada.');
+    }
+
+    // Validación Módulo 05 (Final)
+    function verifyStage4() {
+      const k1 = document.getElementById('final-k1').value.trim();
+      const k2 = document.getElementById('final-k2').value.trim().toUpperCase();
+      const k3 = document.getElementById('final-k3').value.trim();
+      const k4 = document.getElementById('final-k4').value.trim();
+
+      const chks = [
+        document.getElementById('final-chk-1').checked,
+        document.getElementById('final-chk-2').checked,
+        document.getElementById('final-chk-3').checked,
+        document.getElementById('final-chk-4').checked
+      ];
+
+      const masterWord = document.getElementById('code-input-4').value.trim().toUpperCase();
+
+      if (k1 !== '8331' || k2 !== 'MENTE' || k3 !== '2015' || k4 !== '3495') {
+        triggerWrongFeedback('stage-4-lock', 'Alguna de las 4 claves de sala no coincide. Revisa tu llavero lateral.');
+        return;
+      }
+      if (!chks.every(Boolean)) {
+        triggerWrongFeedback('stage-4-lock', 'Debéis confirmar los 4 pilares de la ecuación de la conducta humana.');
+        return;
+      }
+      if (masterWord !== 'HUMANO') {
+        triggerWrongFeedback('stage-4-lock', 'Palabra Maestra incorrecta. «El ser ______ es extraordinario».');
+        return;
+      }
+
+      completeStageAndAdvance(4, '¡SISTEMA DESBLOQUEADO! Habéis escapado de HUMAN_BEHAVIOR.EXE.');
+    }
+
+    /**
+     * FINALIZACIÓN DE LA PARTIDA Y CÁLCULO DE CALIFICACIÓN (RÚBRICA FOPP)
+     */
+    function finishGame(escapedSuccessfully) {
+      gameState.finished = true;
+      gameState.escaped = escapedSuccessfully;
+      clearInterval(gameState.timerInterval);
+      clearInterval(gameState.heartbeatInterval);
+
+      if (escapedSuccessfully) {
+        playSound('victory');
+        document.getElementById('header-lock-icon').innerHTML = `
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+        `;
+      } else {
+        playSound('error');
+      }
+
+      document.getElementById('view-game').classList.add('hidden');
+      document.getElementById('view-results').classList.remove('hidden');
+
+      const banner = document.getElementById('result-banner');
+      if (escapedSuccessfully) {
+        banner.innerHTML = `
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold">
+            <span>🎉 MISIÓN CUMPLIDA · SISTEMA LIBERADO</span>
+          </div>
+          <h2 class="text-3xl sm:text-4xl font-extrabold text-white">¡Enhorabuena, ${escapeHtml(gameState.team.name)}!</h2>
+          <p class="text-slate-300 text-sm sm:text-base">
+            Habéis descifrado los 4 pilares de la conducta humana y superado <strong>HUMAN_BEHAVIOR.EXE</strong> con <strong class="text-emerald-400 font-mono">${formatTime(gameState.timeRemaining)}</strong> de margen.
+          </p>
+        `;
+      } else {
+        banner.innerHTML = `
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-mono font-bold">
+            <span>⏰ TIEMPO AGOTADO · BLOQUEO DE SEGURIDAD</span>
+          </div>
+          <h2 class="text-3xl sm:text-4xl font-extrabold text-white">Tiempo finalizado, ${escapeHtml(gameState.team.name)}</h2>
+          <p class="text-slate-300 text-sm sm:text-base">
+            El reloj llegó a <strong>00:00</strong>, pero vuestro progreso parcial y trabajo en equipo quedan registrados en esta acta de evaluación.
+          </p>
+        `;
+      }
+
+      const timeConsumed = INITIAL_TIME_SECONDS - gameState.timeRemaining;
+      const completedCount = gameState.completedStages.filter(Boolean).length;
+      const totalHints = gameState.hintsRevealed.reduce((a, b) => a + b, 0);
+
+      document.getElementById('res-time-left').textContent = formatTime(gameState.timeRemaining);
+      document.getElementById('res-time-used').textContent = `Consumido: ${formatTime(timeConsumed)}`;
+      document.getElementById('res-modules').textContent = `${completedCount} / 5`;
+      document.getElementById('res-errors').textContent = `Intentos fallidos: ${gameState.failedAttempts}`;
+      document.getElementById('res-hints').textContent = `${totalHints} / 25`;
+      document.getElementById('res-penalty').textContent = `Penalización: -${formatTime(gameState.totalPenaltySeconds)}`;
+
+      recalculateFinalGrade();
+      syncCurrentTeamToLeaderboard();
+    }
+
+    /**
+     * CÁLCULO DINÁMICO DE LA NOTA SOBRE 10 (LOMLOE / FOPP 4º ESO)
+     * 1. Dominio Conceptual y Módulos Superados: hasta 4.00 pts
+     * 2. Eficiencia Temporal (Tiempo restante): hasta 3.00 pts
+     * 3. Autonomía y Gestión de Pistas/Errores: hasta 1.50 pts
+     * 4. Organización, Roles y Cohesión de Equipo: hasta 1.50 pts (+ ajuste docente)
+     */
+    function recalculateFinalGrade() {
+      const completedCount = gameState.completedStages.filter(Boolean).length;
+      const totalHints = gameState.hintsRevealed.reduce((a, b) => a + b, 0);
+
+      // 1. Puntos por módulos (0.80 pts por cada módulo superado -> máx 4.00)
+      const moduleScore = completedCount * 0.80;
+
+      // 2. Puntos por tiempo restante (si escapa, base 1.50 + hasta 1.50 proporcional al tiempo sobrante)
+      let timeScore = 0;
+      if (gameState.escaped) {
+        const ratio = gameState.timeRemaining / INITIAL_TIME_SECONDS;
+        timeScore = 1.50 + (ratio * 1.50);
+      } else {
+        timeScore = 0.25 * (completedCount / 5);
+      }
+
+      // 3. Puntos por autonomía (1.50 base, menos 0.05 por cada pista usada y 0.05 por error)
+      const autonomyRaw = 1.50 - (totalHints * 0.05) - (gameState.failedAttempts * 0.05);
+      const autonomyScore = Math.max(0, Math.min(1.50, autonomyRaw));
+
+      // 4. Puntos por organización y cohesión grupal (4 checks * 0.375 = 1.50)
+      const checkedCount = Array.from(document.querySelectorAll('.team-rubric-check')).filter(c => c.checked).length;
+      const teamScore = checkedCount * 0.375;
+
+      // Suma total + ajuste docente, acotado entre 0 y 10
+      const rawTotal = moduleScore + timeScore + autonomyScore + teamScore + gameState.teacherBonus;
+      const finalGrade = Math.max(0, Math.min(10, rawTotal));
+      gameState.latestCalculatedGrade = finalGrade;
+
+      document.getElementById('res-final-grade').textContent = finalGrade.toFixed(2);
+
+      // Renderizar desglose escrito
+      const breakdownEl = document.getElementById('grade-breakdown-list');
+      breakdownEl.innerHTML = `
+        <div class="flex justify-between"><span>• Dominio Saberes Temas 1 y 2 (${completedCount}/5):</span><strong>${moduleScore.toFixed(2)} / 4.00</strong></div>
+        <div class="flex justify-between"><span>• Eficiencia Temporal y Rapidez:</span><strong>${timeScore.toFixed(2)} / 3.00</strong></div>
+        <div class="flex justify-between"><span>• Autonomía (${totalHints} pistas, ${gameState.failedAttempts} fallos):</span><strong>${autonomyScore.toFixed(2)} / 1.50</strong></div>
+        <div class="flex justify-between"><span>• Organización y Roles de Equipo:</span><strong>${teamScore.toFixed(2)} / 1.50</strong></div>
+        ${gameState.teacherBonus !== 0 ? `<div class="flex justify-between text-indigo-700"><span>• Ajuste Observación Docente:</span><strong>${gameState.teacherBonus > 0 ? '+' : ''}${gameState.teacherBonus.toFixed(2)}</strong></div>` : ''}
+        <div class="border-t border-slate-300 pt-1.5 flex justify-between text-sm font-extrabold text-slate-900">
+          <span>CALIFICACIÓN FINAL FOPP:</span>
+          <span>${finalGrade.toFixed(2)} / 10</span>
+        </div>
+      `;
+
+      // Generar insignias de reconocimiento
+      const badges = [];
+      if (gameState.escaped) badges.push('🔓 Escapistas Oficiales');
+      if (totalHints === 0 && gameState.escaped) badges.push('🧠 Mentes Brillantes (0 Pistas)');
+      if (gameState.timeRemaining >= 900 && gameState.escaped) badges.push('⚡ Velocidad Sináptica (+15 min)');
+      if (checkedCount === 4) badges.push('🤝 Equipo Cohesionado');
+      if (gameState.failedAttempts === 0 && gameState.escaped) badges.push('🎯 Precisión Quirúrgica');
+      if (badges.length === 0) badges.push('📚 Investigadores en Formación');
+
+      document.getElementById('badges-container').innerHTML = badges.map(b => `
+        <span class="px-3 py-1.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 text-xs font-bold">
+          ${b}
+        </span>
+      `).join('');
+
+      if (gameState.started) {
+        syncCurrentTeamToLeaderboard();
+      }
+    }
+
+    /**
+     * GENERACIÓN DE ACTA PARA EL PROFESOR (COPIAR AL PORTAPAPELES Y DESCARGAR TXT)
+     */
+    function buildReportText() {
+      const completedCount = gameState.completedStages.filter(Boolean).length;
+      const totalHints = gameState.hintsRevealed.reduce((a, b) => a + b, 0);
+      const timeConsumed = INITIAL_TIME_SECONDS - gameState.timeRemaining;
+      const grade = document.getElementById('res-final-grade').textContent;
+
+      return [
+        '====================================================================',
+        'ACTA DE EVALUACIÓN - ESCAPE ROOM FOPP 4º ESO (HUMAN_BEHAVIOR.EXE)',
+        '====================================================================',
+        `Equipo: ${gameState.team.name} (${gameState.team.course})`,
+        `Fecha: ${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+        '',
+        'ORGANIZACIÓN DE ROLES DEL EQUIPO:',
+        ` - Coordinador/a de Tiempo: ${gameState.team.coord}`,
+        ` - Analista de Dossier (T1-T2): ${gameState.team.analyst}`,
+        ` - Descifrador/a de Códigos: ${gameState.team.hacker}`,
+        ` - Gestor/a de Pistas: ${gameState.team.hintsManager}`,
+        '',
+        'TELEMETRÍA DE LA MISIÓN:',
+        ` - Resultado: ${gameState.escaped ? 'SUPERADO CON ÉXITO' : 'TIEMPO AGOTADO'}`,
+        ` - Módulos completados: ${completedCount} / 5`,
+        ` - Tiempo restante: ${formatTime(gameState.timeRemaining)} (Consumido: ${formatTime(timeConsumed)})`,
+        ` - Pistas usadas: ${totalHints} / 25 (Penalización: -${formatTime(gameState.totalPenaltySeconds)})`,
+        ` - Intentos fallidos: ${gameState.failedAttempts}`,
+        ` - Ajuste observación docente: ${gameState.teacherBonus >= 0 ? '+' : ''}${gameState.teacherBonus.toFixed(2)} pts`,
+        '',
+        `CALIFICACIÓN FINAL CALCULADA: ${grade} / 10`,
+        '===================================================================='
+      ].join('\n');
+    }
+
+    function copyGradeSummary() {
+      const text = buildReportText();
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        showToast('Acta copiada al portapapeles. ¡Pégala en Classroom/Moodle!', '📋');
+      } catch (err) {
+        showToast('No se pudo copiar automáticamente; usa el botón Descargar (.txt)', '⚠️');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    function exportTeamReportTXT() {
+      const text = buildReportText();
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const cleanName = gameState.team.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.href = url;
+      a.download = `Acta_EscapeRoom_FOPP_${cleanName}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Informe descargado correctamente', '💾');
+    }
+
+    /**
+     * PANEL DE CONTROL DOCENTE (SOLUCIONES, AJUSTE DE NOTA Y TIEMPO EXTRA)
+     */
+    function openTeacherModal() {
+      document.getElementById('teacher-modal').classList.remove('hidden');
+    }
+
+    function closeTeacherModal() {
+      document.getElementById('teacher-modal').classList.add('hidden');
+    }
+
+    function verifyTeacherPin() {
+      const pin = document.getElementById('teacher-pin-input').value.trim();
+      if (pin === '2026') {
+        document.getElementById('teacher-pin-box').classList.add('hidden');
+        document.getElementById('teacher-unlocked-box').classList.remove('hidden');
+        document.getElementById('teacher-pin-error').classList.add('hidden');
+      } else {
+        document.getElementById('teacher-pin-error').classList.remove('hidden');
+      }
+    }
+
+    function updateTeacherBonus(val) {
+      gameState.teacherBonus = parseFloat(val);
+      document.getElementById('teacher-bonus-label').textContent = `${gameState.teacherBonus > 0 ? '+' : ''}${gameState.teacherBonus.toFixed(2)} pts`;
+      if (gameState.finished) {
+        recalculateFinalGrade();
+      }
+    }
+
+    function addExtraMinutes(mins) {
+      gameState.timeRemaining += mins * 60;
+      updateTimerUI();
+      syncCurrentTeamToLeaderboard();
+      showToast(`Se han añadido +${mins} minutos al marcador`, '⏱️');
+    }
+
+    function resetFullGame() {
+      clearInterval(gameState.timerInterval);
+      clearInterval(gameState.heartbeatInterval);
+      location.reload();
+    }
+
+    /**
+     * CONTROL DEL MODAL DE CLASIFICACIÓN EN TIEMPO REAL
+     */
+    window.leaderboardRecords = [];
+
+    function loadLocalLeaderboardFallback() {
+      try {
+        const raw = localStorage.getItem(LOCAL_LEADERBOARD_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            window.leaderboardRecords = parsed;
+            updateLeaderboardBadgeCount();
+          }
+        }
+      } catch (e) {
+        // Ignorar errores de almacenamiento local
+      }
+    }
+
+    function saveLocalLeaderboardFallback() {
+      try {
+        localStorage.setItem(LOCAL_LEADERBOARD_KEY, JSON.stringify(window.leaderboardRecords));
+      } catch (e) {
+        // Ignorar errores de almacenamiento local
+      }
+    }
+
+    function openLeaderboardModal() {
+      document.getElementById('leaderboard-modal').classList.remove('hidden');
+      renderLeaderboardTable();
+    }
+
+    function closeLeaderboardModal() {
+      document.getElementById('leaderboard-modal').classList.add('hidden');
+    }
+
+    function syncCurrentTeamToLeaderboard() {
+      if (!gameState.started || !gameState.teamDocId) return;
+      const completedCount = gameState.completedStages.filter(Boolean).length;
+      const totalHints = gameState.hintsRevealed.reduce((a, b) => a + b, 0);
+
+      // Estimación de nota en tiempo real mientras juegan
+      let estimatedGrade = gameState.latestCalculatedGrade;
+      if (!gameState.finished) {
+        const modPts = completedCount * 0.80;
+        const timePts = (gameState.timeRemaining / INITIAL_TIME_SECONDS) * 1.50;
+        const autoPts = Math.max(0, 1.50 - (totalHints * 0.05) - (gameState.failedAttempts * 0.05));
+        estimatedGrade = Math.min(10, modPts + timePts + autoPts + 1.50);
+      }
+
+      const payload = {
+        id: gameState.teamDocId,
+        teamName: gameState.team.name,
+        course: gameState.team.course,
+        members: [gameState.team.coord, gameState.team.analyst, gameState.team.hacker, gameState.team.hintsManager]
+          .filter(m => m && m !== 'Sin asignar')
+          .join(', '),
+        completedCount: completedCount,
+        completedStages: [...gameState.completedStages],
+        timeRemaining: gameState.timeRemaining,
+        totalHints: totalHints,
+        failedAttempts: gameState.failedAttempts,
+        finished: gameState.finished,
+        escaped: gameState.escaped,
+        grade: Number(estimatedGrade.toFixed(2)),
+        updatedAt: Date.now()
+      };
+
+      // Actualizar copia local inmediata
+      const existingIdx = window.leaderboardRecords.findIndex(r => r.id === payload.id);
+      if (existingIdx >= 0) {
+        window.leaderboardRecords[existingIdx] = payload;
+      } else {
+        window.leaderboardRecords.push(payload);
+      }
+      saveLocalLeaderboardFallback();
+      updateLeaderboardBadgeCount();
+
+      // Enviar a la nube si está inicializado
+      if (window.cloudSync && typeof window.cloudSync.upsertTeam === 'function') {
+        window.cloudSync.upsertTeam(payload);
+      }
+    }
+
+    function updateLeaderboardBadgeCount() {
+      const el = document.getElementById('hud-live-teams-count');
+      if (el) el.textContent = window.leaderboardRecords.length;
+    }
+
+    function renderLeaderboardTable() {
+      const container = document.getElementById('leaderboard-list-container');
+      if (!container) return;
+
+      const filterCourse = document.getElementById('leaderboard-course-filter')?.value || 'ALL';
+      let records = [...window.leaderboardRecords];
+
+      if (filterCourse !== 'ALL') {
+        records = records.filter(r => r.course === filterCourse);
+      }
+
+      // Ordenación en memoria: 1º Escapados, 2º Módulos superados, 3º Tiempo restante, 4º Menos pistas
+      records.sort((a, b) => {
+        if (a.escaped !== b.escaped) return a.escaped ? -1 : 1;
+        if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+        if (b.timeRemaining !== a.timeRemaining) return b.timeRemaining - a.timeRemaining;
+        return a.totalHints - b.totalHints;
+      });
+
+      if (records.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 space-y-2">
+            <div class="text-4xl">📡</div>
+            <div class="font-bold text-slate-300">Aún no hay equipos activos en este grupo</div>
+            <p class="text-xs text-slate-500">En cuanto un equipo pulse «Iniciar Escape Room», aparecerá aquí en tiempo real.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = records.map((rec, index) => {
+        const rank = index + 1;
+        let medal = `<span class="font-mono font-bold text-slate-400">#${rank}</span>`;
+        let rowBorder = 'border-slate-800 bg-slate-950/70';
+
+        if (rank === 1) {
+          medal = '<span class="text-2xl">🥇</span>';
+          rowBorder = 'border-amber-500/50 bg-gradient-to-r from-amber-950/30 via-slate-950 to-slate-950';
+        } else if (rank === 2) {
+          medal = '<span class="text-2xl">🥈</span>';
+          rowBorder = 'border-slate-400/40 bg-slate-950/90';
+        } else if (rank === 3) {
+          medal = '<span class="text-2xl">🥉</span>';
+          rowBorder = 'border-orange-700/40 bg-slate-950/80';
+        }
+
+        const isMyTeam = rec.id === gameState.teamDocId;
+        const stagesArray = Array.isArray(rec.completedStages) ? rec.completedStages : [false, false, false, false, false];
+
+        const pillsHtml = stagesArray.map((done, i) => `
+          <span class="w-6 h-6 rounded-lg flex items-center justify-center font-mono text-xs font-bold ${
+            done ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-900 text-slate-500 border border-slate-800'
+          }" title="Módulo 0${i + 1}">
+            ${done ? '✓' : i + 1}
+          </span>
+        `).join('');
+
+        let statusBadge = `<span class="px-2.5 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[11px] font-semibold">En curso (${rec.completedCount}/5)</span>`;
+        if (rec.escaped) {
+          statusBadge = `<span class="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">🔓 ESCAPADO</span>`;
+        } else if (rec.finished) {
+          statusBadge = `<span class="px-2.5 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[11px] font-bold">⏰ TIEMPO AGOTADO</span>`;
+        }
+
+        return `
+          <div class="p-4 rounded-2xl border ${rowBorder} ${isMyTeam ? 'ring-2 ring-indigo-500/60' : ''} flex flex-col md:flex-row md:items-center justify-between gap-4 transition">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="w-10 text-center shrink-0">${medal}</div>
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-bold text-base text-white truncate">${escapeHtml(rec.teamName || 'Equipo')}</span>
+                  ${isMyTeam ? '<span class="px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-bold">TÚ</span>' : ''}
+                  <span class="text-[11px] text-slate-400 font-mono">${escapeHtml(rec.course || '')}</span>
+                </div>
+                <p class="text-xs text-slate-400 truncate mt-0.5">${escapeHtml(rec.members || 'Integrantes registrados')}</p>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between md:justify-end gap-3 sm:gap-5">
+              <!-- Progreso visual de los 5 módulos -->
+              <div class="flex items-center gap-1">${pillsHtml}</div>
+
+              <!-- Estado -->
+              <div>${statusBadge}</div>
+
+              <!-- Tiempo restante -->
+              <div class="text-right">
+                <div class="text-[10px] uppercase text-slate-500 font-semibold">Tiempo</div>
+                <div class="font-mono font-bold text-sm ${rec.timeRemaining <= 180 ? 'text-rose-400' : 'text-emerald-400'}">
+                  ${formatTime(rec.timeRemaining || 0)}
+                </div>
+              </div>
+
+              <!-- Pistas -->
+              <div class="text-right">
+                <div class="text-[10px] uppercase text-slate-500 font-semibold">Pistas</div>
+                <div class="font-mono font-bold text-sm text-amber-300">${rec.totalHints || 0}/25</div>
+              </div>
+
+              <!-- Nota -->
+              <div class="text-right min-w-[58px]">
+                <div class="text-[10px] uppercase text-slate-500 font-semibold">${rec.finished ? 'Nota' : 'Est.'}</div>
+                <div class="font-mono font-extrabold text-base text-white">${Number(rec.grade || 0).toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    let clearConfirmPending = false;
+    function handleClearLeaderboardClick() {
+      const btn = document.getElementById('btn-clear-board');
+      if (!clearConfirmPending) {
+        clearConfirmPending = true;
+        btn.textContent = '⚠️ Confirmar borrado total';
+        setTimeout(() => {
+          clearConfirmPending = false;
+          if (btn) btn.textContent = '🗑️ Limpiar Ranking';
+        }, 4000);
+        return;
+      }
+      clearConfirmPending = false;
+      btn.textContent = '🗑️ Limpiar Ranking';
+      window.leaderboardRecords = [];
+      saveLocalLeaderboardFallback();
+      updateLeaderboardBadgeCount();
+      renderLeaderboardTable();
+      if (window.cloudSync && typeof window.cloudSync.clearAllTeams === 'function') {
+        window.cloudSync.clearAllTeams();
+      }
+      showToast('Clasificación del aula vaciada', '🗑️');
+    }
+
+    function exportAllLeaderboardCSV() {
+      if (window.leaderboardRecords.length === 0) {
+        showToast('No hay equipos registrados todavía', '⚠️');
+        return;
+      }
+      const lines = [
+        'Equipo;Grupo;Integrantes;Estado;Modulos_Superados;Tiempo_Restante;Pistas_Usadas;Fallos;Nota_Sobre_10'
+      ];
+      window.leaderboardRecords.forEach(r => {
+        const status = r.escaped ? 'ESCAPADO' : (r.finished ? 'TIEMPO AGOTADO' : 'EN CURSO');
+        lines.push(`"${r.teamName}";"${r.course}";"${r.members}";"${status}";${r.completedCount}/5;${formatTime(r.timeRemaining)};${r.totalHints};${r.failedAttempts};${Number(r.grade).toFixed(2)}`);
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Clasificacion_EscapeRoom_FOPP_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Listado de notas descargado (.csv)', '📥');
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[m]));
+    }
+
+    // Cargar datos locales iniciales y escuchar cambios entre pestañas del mismo navegador
+    loadLocalLeaderboardFallback();
+    window.addEventListener('storage', (ev) => {
+      if (ev.key === LOCAL_LEADERBOARD_KEY) {
+        loadLocalLeaderboardFallback();
+        renderLeaderboardTable();
+      }
+    });
+  </script>
+
+  <!-- ===================================================================== -->
+  <!-- SINCRONIZACIÓN EN TIEMPO REAL ENTRE EQUIPOS DEL AULA                  -->
+  <!-- ===================================================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+
+    if (rawConfig) {
+      try {
+        const firebaseConfig = JSON.parse(rawConfig);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        let currentUser = null;
+
+        const initRealtimeSync = async () => {
+          try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+              const cred = await signInWithCustomToken(auth, __initial_auth_token);
+              currentUser = cred.user;
+            } else {
+              const cred = await signInAnonymously(auth);
+              currentUser = cred.user;
+            }
+          } catch (authErr) {
+            console.warn('Error de autenticación en sala:', authErr);
+            return;
+          }
+
+          if (!currentUser) return;
+
+          const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'fopp_escape_leaderboard');
+
+          // Escucha en tiempo real de todos los equipos de la clase (sin orderBy/where complejos)
+          onSnapshot(
+            leaderboardCol,
+            (snapshot) => {
+              const items = [];
+              snapshot.forEach((docSnap) => {
+                items.push({ id: docSnap.id, ...docSnap.data() });
+              });
+              window.leaderboardRecords = items;
+              if (typeof window.updateLeaderboardBadgeCount === 'function') {
+                window.updateLeaderboardBadgeCount();
+              }
+              if (typeof window.renderLeaderboardTable === 'function') {
+                window.renderLeaderboardTable();
+              }
+            },
+            (err) => {
+              console.warn('Error escuchando clasificación en vivo:', err);
+              const statusEl = document.getElementById('leaderboard-sync-status');
+              if (statusEl) {
+                statusEl.textContent = '● Modo local';
+                statusEl.className = 'font-mono text-amber-400';
+              }
+            }
+          );
+
+          // Exponer funciones de escritura protegidas por usuario autenticado
+          window.cloudSync = {
+            upsertTeam: async (teamPayload) => {
+              if (!currentUser) return;
+              try {
+                const teamRef = doc(db, 'artifacts', appId, 'public', 'data', 'fopp_escape_leaderboard', teamPayload.id);
+                await setDoc(teamRef, teamPayload, { merge: true });
+              } catch (e) {
+                console.warn('No se pudo actualizar el progreso del equipo:', e);
+              }
+            },
+            clearAllTeams: async () => {
+              if (!currentUser) return;
+              try {
+                const snap = await getDocs(leaderboardCol);
+                const deletions = [];
+                snap.forEach((d) => {
+                  deletions.push(deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fopp_escape_leaderboard', d.id)));
+                });
+                await Promise.all(deletions);
+              } catch (e) {
+                console.warn('No se pudo limpiar la clasificación:', e);
+              }
+            }
+          };
+
+          // Si el equipo ya había iniciado antes de terminar la autenticación, sincronizar ahora
+          if (typeof window.syncCurrentTeamToLeaderboard === 'function') {
+            window.syncCurrentTeamToLeaderboard();
+          }
+        };
+
+        initRealtimeSync();
+      } catch (initErr) {
+        console.warn('Configuración en tiempo real no disponible, usando modo local:', initErr);
+      }
+    } else {
+      const statusEl = document.getElementById('leaderboard-sync-status');
+      if (statusEl) {
+        statusEl.textContent = '● Modo local / multi-pestaña';
+        statusEl.className = 'font-mono text-amber-400';
+      }
+    }
+  </script>
+</body>
+</html>
